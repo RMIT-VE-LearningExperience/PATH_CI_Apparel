@@ -39,9 +39,8 @@ const db = getFirestore(app, databaseId);
 
 const hierarchy = {
   levels: [
-    { id: "level_1", name: "Printers", singularName: "Printer", type: null,    enabled: true, order: 1 },
-    { id: "level_2", name: "Papers",   singularName: "Paper",   type: "type1", enabled: true, order: 2 },
-    { id: "level_3", name: "Colours",  singularName: "Colour",  type: "type2", enabled: true, order: 3 },
+    { id: "level_1", name: "Courses",  singularName: "Course",  type: null,    enabled: true, order: 1 },
+    { id: "level_2", name: "Products", singularName: "Product", type: "type2", enabled: true, order: 2 },
   ],
 };
 
