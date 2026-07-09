@@ -2,4 +2,7 @@ import { initializeApp } from "firebase-admin/app";
 
 initializeApp();
 
-export { cleanupOrphanedImages, auditOrphanedImages } from "./cleanupOrphanedImages";
+export {
+  cleanupOrphanedImages as apparelCleanupOrphanedImages,
+  auditOrphanedImages as apparelAuditOrphanedImages,
+} from "./cleanupOrphanedImages";

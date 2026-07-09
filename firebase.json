@@ -2,6 +2,7 @@
   "apphosting": {},
   "functions": {
     "source": "functions",
+    "codebase": "path-ci-apparel",
     "predeploy": ["npm --prefix functions run build"]
   },
   "firestore": {

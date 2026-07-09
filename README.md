@@ -1,6 +1,6 @@
-# Project PATH
+# PATH CI Apparel
 
-Minimal Next.js (App Router + TypeScript) app at repository root, configured for Firebase App Hosting.
+Minimal Next.js (App Router + TypeScript) app at repository root, configured for Firebase App Hosting. Fashion/apparel PATH tutorials app, forked from PATH-Template.
 
 ## Requirements
 
@@ -21,7 +21,15 @@ npm run build
 npm start
 ```
 
-The app serves a single page that renders **Printing App**.
+The app serves a single page that renders **PATH CI Apparel**.
+
+## Shared backend
+
+This app shares the `printer-app-531a8` Firebase project with other PATH apps. Isolation is per-app:
+
+- **Firestore:** its own named database (`FIREBASE_DATABASE_ID` / `FIREBASE_ADMIN_DATABASE_ID` = `path-ci-apparel`), separate from the `(default)` database and other apps' named databases.
+- **Storage:** one shared bucket, prefixed per app (`STORAGE_PATH_PREFIX` = `path-ci-apparel`) so each app's uploads live under their own folder.
+- **Cloud Functions:** exported function names are prefixed per app (e.g. `apparelCleanupOrphanedImages`) to avoid colliding with another app's functions deployed to the same project.
 
 ## Firebase App Hosting notes
 

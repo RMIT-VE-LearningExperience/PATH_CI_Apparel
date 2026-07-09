@@ -16,11 +16,11 @@ env:
   - variable: FIREBASE_STORAGE_BUCKET
     value: printer-app-531a8.firebasestorage.app
   - variable: FIREBASE_DATABASE_ID
-    value: project-path-00
+    value: path-ci-apparel
   - variable: FIREBASE_ADMIN_DATABASE_ID
-    value: project-path-00
+    value: path-ci-apparel
   - variable: STORAGE_PATH_PREFIX
-    value: project-path-00
+    value: path-ci-apparel
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
     value: AIzaSyBfRCD35umbBjfnMLlPBRFbW60UDPpbrBw
   - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
