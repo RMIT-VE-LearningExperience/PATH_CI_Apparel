@@ -12,7 +12,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { Add as AddIcon, Crop as CropIcon, Image as ImageIcon, Link as LinkIcon } from "@mui/icons-material";
+import { Add as AddIcon, Crop as CropIcon } from "@mui/icons-material";
 import { useEffect, useRef, useState } from "react";
 import RichTextEditor from "../RichTextEditor";
 import { validateImageFile, processUpload } from "../utils/imageUpload";
@@ -62,7 +62,6 @@ export default function AddEditStepDialog({
 }: Props) {
   const [title, setTitle] = useState("");
   const [contentHtml, setContentHtml] = useState("");
-  const [mediaType, setMediaType] = useState<"image" | "video">("image");
   const [imageDataUrl, setImageDataUrl] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
   const [imageError, setImageError] = useState("");
@@ -81,19 +80,9 @@ export default function AddEditStepDialog({
     prevOpenRef.current = true;
     setTitle(initialData?.title ?? "");
     setContentHtml(initialData?.contentHtml ?? "");
-    const vidUrl = initialData?.videoUrl ?? "";
-    const imgUrl = initialData?.imageUrl ?? "";
-    if (vidUrl) {
-      setMediaType("video");
-      setVideoUrl(vidUrl);
-      setImageDataUrl("");
-      originalImageRef.current = "";
-    } else {
-      setMediaType("image");
-      setImageDataUrl(imgUrl);
-      originalImageRef.current = imgUrl;
-      setVideoUrl("");
-    }
+    setImageDataUrl(initialData?.imageUrl ?? "");
+    originalImageRef.current = initialData?.imageUrl ?? "";
+    setVideoUrl(initialData?.videoUrl ?? "");
     setImageError("");
     setCompressed(false);
     setCropOpen(false);
@@ -123,8 +112,8 @@ export default function AddEditStepDialog({
     onSave({
       title: title.trim(),
       contentHtml,
-      imageDataUrl: mediaType === "image" ? imageDataUrl : "",
-      videoUrl: mediaType === "video" ? videoUrl.trim() : "",
+      imageDataUrl,
+      videoUrl: videoUrl.trim(),
     });
   }
 
@@ -151,147 +140,111 @@ export default function AddEditStepDialog({
 
             {/* Media section */}
             <Box>
-              <Typography variant="body2" fontWeight={500} sx={{ mb: 1 }}>Media</Typography>
-              <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-                <Button
-                  size="small"
-                  variant={mediaType === "image" ? "contained" : "outlined"}
-                  startIcon={<ImageIcon />}
-                  onClick={() => { setMediaType("image"); setVideoUrl(""); }}
-                  sx={{
-                    textTransform: "none", fontWeight: 600,
-                    ...(mediaType === "image"
-                      ? { bgcolor: "#3D8078", color: "#fff", "&:hover": { bgcolor: "#2D6059" } }
-                      : { color: "#3D8078", borderColor: "#3D8078" }),
-                  }}
-                >
-                  Image
-                </Button>
-                <Button
-                  size="small"
-                  variant={mediaType === "video" ? "contained" : "outlined"}
-                  startIcon={<LinkIcon />}
-                  onClick={() => { setMediaType("video"); clearImage(); }}
-                  sx={{
-                    textTransform: "none", fontWeight: 600,
-                    ...(mediaType === "video"
-                      ? { bgcolor: "#3D8078", color: "#fff", "&:hover": { bgcolor: "#2D6059" } }
-                      : { color: "#3D8078", borderColor: "#3D8078" }),
-                  }}
-                >
-                  Video URL
-                </Button>
-              </Stack>
+              <Typography variant="body2" fontWeight={500} sx={{ mb: 1 }}>Image</Typography>
+              <Box>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>Optional</Typography>
 
-              {/* Image upload section */}
-              {mediaType === "image" && (
-                <Box>
-                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>Optional</Typography>
-
-                  {!imageDataUrl && (
-                    <Stack direction="row" alignItems="center" spacing={1.5}>
-                      <IconButton onClick={() => fileInputRef.current?.click()} sx={UPLOAD_BTN_SX}>
-                        <AddIcon />
-                      </IconButton>
-                      <Typography variant="caption" color="text.secondary">
-                        JPEG, PNG, or GIF · max 700 KB
-                      </Typography>
-                    </Stack>
-                  )}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/gif"
-                    style={{ display: "none" }}
-                    onChange={(e) => void handleFileChange(e)}
-                  />
-
-                  {imageError && (
-                    <Typography variant="caption" color="error" display="block" sx={{ mt: 0.5 }}>
-                      {imageError}
+                {!imageDataUrl && (
+                  <Stack direction="row" alignItems="center" spacing={1.5}>
+                    <IconButton onClick={() => fileInputRef.current?.click()} sx={UPLOAD_BTN_SX}>
+                      <AddIcon />
+                    </IconButton>
+                    <Typography variant="caption" color="text.secondary">
+                      JPEG, PNG, or GIF · max 700 KB
                     </Typography>
-                  )}
-                  {compressed && (
-                    <Typography variant="caption" display="block" sx={{ mt: 0.5, color: "#f59e0b" }}>
-                      Image was compressed to meet the 700 KB limit.
-                    </Typography>
-                  )}
+                  </Stack>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif"
+                  style={{ display: "none" }}
+                  onChange={(e) => void handleFileChange(e)}
+                />
 
-                  {imageDataUrl && (
-                    <Box sx={{ mt: 2, display: "flex", gap: 2, alignItems: "flex-start" }}>
-                      <Box sx={{ position: "relative", display: "inline-block" }}>
-                        <Box
-                          component="img"
-                          src={imageDataUrl}
-                          alt="Step image preview"
-                          sx={{
-                            width: 220, maxWidth: "100%", aspectRatio: "4/3",
-                            objectFit: "cover", borderRadius: 1,
-                            border: "1px solid", borderColor: "divider",
-                            display: "block",
-                          }}
-                        />
-                        <IconButton
-                          size="small"
-                          onClick={clearImage}
-                          sx={{ position: "absolute", top: 0, right: 0, bgcolor: "rgba(255,255,255,0.9)", "&:hover": { bgcolor: "#fff" } }}
-                        >
-                          ✕
-                        </IconButton>
-                      </Box>
-                      <Box sx={{ display: "flex", flexDirection: "column", gap: 1, mt: 1 }}>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          startIcon={<CropIcon />}
-                          onClick={() => setCropOpen(true)}
-                          sx={{ color: "#3D8078", borderColor: "#3D8078", textTransform: "none", fontWeight: 600 }}
-                        >
-                          Crop
-                        </Button>
-                      </Box>
-                    </Box>
-                  )}
-                </Box>
-              )}
+                {imageError && (
+                  <Typography variant="caption" color="error" display="block" sx={{ mt: 0.5 }}>
+                    {imageError}
+                  </Typography>
+                )}
+                {compressed && (
+                  <Typography variant="caption" display="block" sx={{ mt: 0.5, color: "#f59e0b" }}>
+                    Image was compressed to meet the 700 KB limit.
+                  </Typography>
+                )}
 
-              {/* Video URL section */}
-              {mediaType === "video" && (
-                <Stack spacing={1.5}>
-                  <TextField
-                    label="Video URL"
-                    placeholder="YouTube, Vimeo, or direct .mp4 link"
-                    value={videoUrl}
-                    onChange={(e) => setVideoUrl(e.target.value)}
-                    fullWidth
-                    size="small"
-                  />
-                  {embedUrl && (
-                    <Box sx={{ position: "relative" }}>
-                      {isDirectVideo ? (
-                        <Box component="video" controls src={videoUrl} sx={{ width: "100%", borderRadius: 1 }} />
-                      ) : (
-                        <Box sx={{ position: "relative", width: "100%", paddingBottom: "56.25%", borderRadius: 1, overflow: "hidden" }}>
-                          <Box
-                            component="iframe"
-                            src={embedUrl}
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowFullScreen
-                            sx={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" }}
-                          />
-                        </Box>
-                      )}
+                {imageDataUrl && (
+                  <Box sx={{ mt: 2, display: "flex", gap: 2, alignItems: "flex-start" }}>
+                    <Box sx={{ position: "relative", display: "inline-block" }}>
+                      <Box
+                        component="img"
+                        src={imageDataUrl}
+                        alt="Step image preview"
+                        sx={{
+                          width: 220, maxWidth: "100%", aspectRatio: "4/3",
+                          objectFit: "cover", borderRadius: 1,
+                          border: "1px solid", borderColor: "divider",
+                          display: "block",
+                        }}
+                      />
                       <IconButton
                         size="small"
-                        onClick={() => setVideoUrl("")}
-                        sx={{ position: "absolute", top: 4, right: 4, bgcolor: "rgba(255,255,255,0.9)", "&:hover": { bgcolor: "#fff" } }}
+                        onClick={clearImage}
+                        sx={{ position: "absolute", top: 0, right: 0, bgcolor: "rgba(255,255,255,0.9)", "&:hover": { bgcolor: "#fff" } }}
                       >
                         ✕
                       </IconButton>
                     </Box>
-                  )}
-                </Stack>
-              )}
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1, mt: 1 }}>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<CropIcon />}
+                        onClick={() => setCropOpen(true)}
+                        sx={{ color: "#3D8078", borderColor: "#3D8078", textTransform: "none", fontWeight: 600 }}
+                      >
+                        Crop
+                      </Button>
+                    </Box>
+                  </Box>
+                )}
+              </Box>
+
+              {/* Video URL section */}
+              <Stack spacing={1.5} sx={{ mt: 2.5 }}>
+                <TextField
+                  label="Video URL"
+                  placeholder="YouTube, Vimeo, or direct .mp4 link"
+                  value={videoUrl}
+                  onChange={(e) => setVideoUrl(e.target.value)}
+                  fullWidth
+                  size="small"
+                />
+                {embedUrl && (
+                  <Box sx={{ position: "relative" }}>
+                    {isDirectVideo ? (
+                      <Box component="video" controls src={videoUrl} sx={{ width: "100%", borderRadius: 1 }} />
+                    ) : (
+                      <Box sx={{ position: "relative", width: "100%", paddingBottom: "56.25%", borderRadius: 1, overflow: "hidden" }}>
+                        <Box
+                          component="iframe"
+                          src={embedUrl}
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                          sx={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" }}
+                        />
+                      </Box>
+                    )}
+                    <IconButton
+                      size="small"
+                      onClick={() => setVideoUrl("")}
+                      sx={{ position: "absolute", top: 4, right: 4, bgcolor: "rgba(255,255,255,0.9)", "&:hover": { bgcolor: "#fff" } }}
+                    >
+                      ✕
+                    </IconButton>
+                  </Box>
+                )}
+              </Stack>
             </Box>
           </Stack>
         </DialogContent>

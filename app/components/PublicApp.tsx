@@ -947,7 +947,28 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                         />
                       )}
 
-                      {embedUrl ? (
+                      {step.imageUrl && (
+                        <Box
+                          onClick={() => { setEnlargedImage(step.imageUrl); setImgZoom(1); }}
+                          sx={{
+                            position: "relative", width: "100%", paddingBottom: "60%",
+                            overflow: "hidden", borderRadius: 1, bgcolor: "#FDF9F1",
+                            cursor: "pointer", transition: "all 0.2s ease",
+                            mb: embedUrl ? { xs: 2, sm: 3 } : 0,
+                            "&:hover": { boxShadow: colors.cardShadowHover },
+                          }}
+                        >
+                          <Image
+                            src={step.imageUrl}
+                            alt={step.title}
+                            fill
+                            style={{ objectFit: "contain" }}
+                            sizes="(max-width: 600px) 100vw, (max-width: 960px) 90vw, 800px"
+                          />
+                        </Box>
+                      )}
+
+                      {embedUrl && (
                         isDirectVideo ? (
                           <Box component="video" controls sx={{ width: "100%", borderRadius: 1 }}>
                             <source src={step.videoUrl} />
@@ -963,25 +984,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                             />
                           </Box>
                         )
-                      ) : step.imageUrl ? (
-                        <Box
-                          onClick={() => { setEnlargedImage(step.imageUrl); setImgZoom(1); }}
-                          sx={{
-                            position: "relative", width: "100%", paddingBottom: "60%",
-                            overflow: "hidden", borderRadius: 1, bgcolor: "#FDF9F1",
-                            cursor: "pointer", transition: "all 0.2s ease",
-                            "&:hover": { boxShadow: colors.cardShadowHover },
-                          }}
-                        >
-                          <Image
-                            src={step.imageUrl}
-                            alt={step.title}
-                            fill
-                            style={{ objectFit: "contain" }}
-                            sizes="(max-width: 600px) 100vw, (max-width: 960px) 90vw, 800px"
-                          />
-                        </Box>
-                      ) : null}
+                      )}
                     </CardContent>
                   </Card>
                 );
