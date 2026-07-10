@@ -201,7 +201,7 @@ export default function AddEditStepDialog({
                         variant="outlined"
                         startIcon={<CropIcon />}
                         onClick={() => setCropOpen(true)}
-                        sx={{ color: "#3D8078", borderColor: "#3D8078", textTransform: "none", fontWeight: 600 }}
+                        sx={{ color: "#000054", borderColor: "#000054", textTransform: "none", fontWeight: 600 }}
                       >
                         Crop
                       </Button>
