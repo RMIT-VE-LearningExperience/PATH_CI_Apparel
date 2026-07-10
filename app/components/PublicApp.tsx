@@ -60,7 +60,18 @@ function getVideoEmbedUrl(url: string): string | null {
 
 function sanitizeHtml(html: string): string {
   return html
-    .replace(/<(?!\/?(p|br|ul|ol|li|b|strong|i|em|h3|a)(\s+[^>]*)?>)[^>]*>/gi, "")
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
+    .replace(/\s+on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/\s+srcdoc\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(
+      /<(?!\/?(p|br|ul|ol|li|b|strong|i|em|h1|h2|h3|h4|h5|h6|a|img|iframe|div|span|blockquote|table|thead|tbody|tr|th|td)(\s+[^>]*)?>)[^>]*>/gi,
+      "",
+    )
+    .replace(/\s(href|src)\s*=\s*("|')(.*?)\2/gi, (_m, attr: string, quote: string, value: string) => {
+      const safe = /^(https?:\/\/|mailto:|data:image\/)/i.test(value) ? value : "#";
+      return ` ${attr}=${quote}${safe}${quote}`;
+    })
     .replace(/<a\s+[^>]*href=(\"|')(.*?)\1[^>]*>/gi, (_m, _q, href: string) => {
       const safe = /^(https?:\/\/|mailto:)/i.test(href) ? href : "#";
       return `<a href="${safe}" target="_blank" rel="noreferrer">`;
@@ -909,6 +920,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
               {currentSteps.map((step, index) => {
                 const embedUrl = step.videoUrl ? getVideoEmbedUrl(step.videoUrl) : null;
                 const isDirectVideo = /\.(mp4|webm|ogg)(\?.*)?$/i.test(step.videoUrl ?? "");
+                const contentIncludesImage = step.imageUrl ? step.contentHtml.includes(step.imageUrl) : false;
                 return (
                   <Card
                     key={step.id}
@@ -942,12 +954,21 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                             "& p": { mb: 1 }, "& ul, & ol": { pl: 2, mb: 1 }, "& li": { mb: 0.5 },
                             "& strong, & b": { fontWeight: 700 }, "& em, & i": { fontStyle: "italic" },
                             "& a": { color: colors.primary, textDecoration: "underline", "&:hover": { opacity: 0.8 } },
+                            "& img": { maxWidth: "100%", height: "auto", borderRadius: 1 },
+                            "& iframe": { maxWidth: "100%", border: "none", borderRadius: 1 },
+                            "& .emble-columns-container": { display: "grid", gap: 2 },
+                            "& .emble-columns-child": { minWidth: 0 },
+                            "@media (min-width: 700px)": {
+                              "& .emble-columns-container": {
+                                gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+                              },
+                            },
                           }}
                           dangerouslySetInnerHTML={{ __html: sanitizeHtml(step.contentHtml) }}
                         />
                       )}
 
-                      {step.imageUrl && (
+                      {step.imageUrl && !contentIncludesImage && (
                         <Box
                           onClick={() => { setEnlargedImage(step.imageUrl); setImgZoom(1); }}
                           sx={{
