@@ -7,12 +7,14 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   MenuItem,
   Stack,
+  Switch,
   TextField,
   Typography,
 } from "@mui/material";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DIALOG_PAPER_SX, DIALOG_ACTIONS_SX, PRIMARY_BTN_SX, CANCEL_BTN_SX } from "./dialogStyles";
 
 type Props = {
@@ -33,9 +35,23 @@ export default function EmbedDialog({ open, onClose, url, itemName }: Props) {
   const [width, setWidth] = useState("100%");
   const [height, setHeight] = useState("600");
   const [copied, setCopied] = useState(false);
+  const [hideMenu, setHideMenu] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setHideMenu(false);
+    }
+  }, [open]);
+
+  const shareUrl = (() => {
+    const shareUrlObj = new URL(url);
+    if (hideMenu) shareUrlObj.searchParams.set("hideMenu", "1");
+    else shareUrlObj.searchParams.delete("hideMenu");
+    return shareUrlObj.toString();
+  })();
 
   const presetValue = `${width}x${height}`;
-  const embedCode = `<iframe src="${url}" width="${width}" height="${height}px" frameborder="0" allowfullscreen allow="fullscreen; accelerometer; gyroscope; vr" style="border:none;"></iframe>`;
+  const embedCode = `<iframe src="${shareUrl}" width="${width}" height="${height}px" frameborder="0" allowfullscreen allow="fullscreen; accelerometer; gyroscope; vr" style="border:none;"></iframe>`;
 
   function handlePreset(value: string) {
     const [w, h] = value.split("x");
@@ -60,6 +76,10 @@ export default function EmbedDialog({ open, onClose, url, itemName }: Props) {
       </DialogTitle>
       <DialogContent sx={{ paddingTop: "24px !important", bgcolor: "#ffffff" }}>
         <Stack spacing={2}>
+          <FormControlLabel
+            control={<Switch checked={hideMenu} onChange={(_, checked) => setHideMenu(checked)} />}
+            label="Hide top menu in student view"
+          />
           <Stack direction="row" spacing={2}>
             <Box sx={{ flex: 1 }}>
               <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: "block", mb: 0.5 }}>Width</Typography>

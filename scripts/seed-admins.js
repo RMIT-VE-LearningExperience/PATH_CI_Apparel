@@ -37,16 +37,21 @@ function loadCredential() {
 const app = initializeApp({ credential: loadCredential() });
 
 const auth = getAuth(app);
-const db = getFirestore(app);
+const databaseId =
+  process.env.FIREBASE_ADMIN_DATABASE_ID ||
+  process.env.FIREBASE_DATABASE_ID ||
+  "(default)";
+const db = getFirestore(app, databaseId);
 
 async function seedAdmins() {
   const adminsPath = join(__dirname, "admins.json");
   const admins = JSON.parse(readFileSync(adminsPath, "utf-8"));
 
-  console.log(`\nSeeding ${admins.length} admin(s)...\n`);
+  console.log(`\nSeeding ${admins.length} admin(s) into Firestore database "${databaseId}"...\n`);
 
   for (const entry of admins) {
     const { email, role = "admin", name = "", staffNumber = "" } = entry;
+    const normalizedStaffNumber = staffNumber.trim().toUpperCase();
 
     try {
       // Get existing Firebase Auth user, or create one
@@ -71,7 +76,7 @@ async function seedAdmins() {
           name,
           email,
           role,
-          staffNumber,
+          staffNumber: normalizedStaffNumber,
           active: true,
           addedAt: new Date(),
         },

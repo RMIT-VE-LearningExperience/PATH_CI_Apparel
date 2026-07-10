@@ -7,7 +7,9 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   Stack,
+  Switch,
   Typography,
 } from "@mui/material";
 import { Download as DownloadIcon } from "@mui/icons-material";
@@ -24,6 +26,20 @@ type Props = {
 
 export default function QRCodeDialog({ open, onClose, url, itemName }: Props) {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [hideMenu, setHideMenu] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setHideMenu(false);
+    }
+  }, [open]);
+
+  const shareUrl = (() => {
+    const shareUrlObj = new URL(url);
+    if (hideMenu) shareUrlObj.searchParams.set("hideMenu", "1");
+    else shareUrlObj.searchParams.delete("hideMenu");
+    return shareUrlObj.toString();
+  })();
 
   useEffect(() => {
     if (!open) {
@@ -31,7 +47,7 @@ export default function QRCodeDialog({ open, onClose, url, itemName }: Props) {
       return;
     }
     const padding = 20, qrSize = 300, textHeight = 40;
-    void QRCode.toDataURL(url, { width: qrSize, margin: 2, color: { dark: "#000000", light: "#ffffff" } })
+    void QRCode.toDataURL(shareUrl, { width: qrSize, margin: 2, color: { dark: "#000000", light: "#ffffff" } })
       .then((dataUrl) => {
         const canvas = document.createElement("canvas");
         canvas.width = qrSize + padding * 2;
@@ -51,7 +67,7 @@ export default function QRCodeDialog({ open, onClose, url, itemName }: Props) {
         img.src = dataUrl;
       })
       .catch(console.error);
-  }, [open, url, itemName]);
+  }, [open, shareUrl, itemName]);
 
   function download() {
     if (!qrDataUrl) return;
@@ -72,6 +88,10 @@ export default function QRCodeDialog({ open, onClose, url, itemName }: Props) {
       </DialogTitle>
       <DialogContent sx={{ paddingTop: "24px !important", bgcolor: "#ffffff" }}>
         <Stack alignItems="center" spacing={2}>
+          <FormControlLabel
+            control={<Switch checked={hideMenu} onChange={(_, checked) => setHideMenu(checked)} />}
+            label="Hide top menu in student view"
+          />
           {qrDataUrl ? (
             <Box
               component="img"

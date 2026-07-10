@@ -221,6 +221,18 @@ function resolvePathFromIds(selections: NavEntry[], st: TutorialState): string {
   return "/" + parts.join("/");
 }
 
+function appendStudentViewParams(path: string, params: URLSearchParams): string {
+  const nextParams = new URLSearchParams();
+  const hideMenu = params.get("hideMenu");
+
+  if (hideMenu === "1" || hideMenu === "true") {
+    nextParams.set("hideMenu", "1");
+  }
+
+  const query = nextParams.toString();
+  return query ? `${path}?${query}` : path;
+}
+
 // ── Main component ─────────────────────────────────────────────────────
 
 export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) {
@@ -237,6 +249,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
   const [imgZoom, setImgZoom] = useState(1);
   const [showBackToTop, setShowBackToTop] = useState(false);
+  const [hideMenuEnabled, setHideMenuEnabled] = useState(false);
 
   const stepRefs = useRef<(HTMLDivElement | null)[]>([]);
   const visibleStepsRef = useRef(new Set<number>());
@@ -297,13 +310,15 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
   // ── Path builder (uses state closure) ────────────────────────────────
 
   function buildPath(stack: NavEntry[]): string {
-    if (stack.length === 0) return "/";
     if (!state) return "/";
     const parts = stack.map((entry) => {
       const items = state.items[entry.levelId] ?? [];
       return items.find((i) => i.id === entry.itemId)?.slug ?? entry.itemId;
     });
-    return "/" + parts.join("/");
+    const path = parts.length > 0 ? `/${parts.join("/")}` : "/";
+    const params = new URLSearchParams();
+    if (hideMenuEnabled) params.set("hideMenu", "1");
+    return appendStudentViewParams(path, params);
   }
 
   // ── Data loading ─────────────────────────────────────────────────────
@@ -313,6 +328,8 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
       try {
         const params = new URLSearchParams(window.location.search);
         const previewToken = params.get("previewToken");
+        const hideMenuParam = params.get("hideMenu");
+        setHideMenuEnabled(hideMenuParam === "1" || hideMenuParam === "true");
 
         const url = previewToken
           ? `/api/tutorial?previewToken=${encodeURIComponent(previewToken)}`
@@ -378,14 +395,18 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
           }
           if (selections.length > 0) {
             setSelectionStack(selections);
-            window.history.replaceState({}, "", resolvePathFromIds(selections, newState));
+            window.history.replaceState(
+              {},
+              "",
+              appendStudentViewParams(resolvePathFromIds(selections, newState), params),
+            );
           }
           return;
         }
 
         // "View App" button from CMS — show homepage, skip saved progress
         if (params.get("home")) {
-          window.history.replaceState({}, "", window.location.pathname);
+          window.history.replaceState({}, "", appendStudentViewParams("/", params));
           return;
         }
 
@@ -404,7 +425,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                 window.history.replaceState(
                   {},
                   "",
-                  resolvePathFromIds(parsed.selections, newState),
+                  appendStudentViewParams(resolvePathFromIds(parsed.selections, newState), params),
                 );
               }
             }
@@ -720,24 +741,26 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
       >
         {previewBanner}
         <Container maxWidth="md">
-          <Stack direction="row" spacing={1.5} sx={{ mb: { xs: 4, sm: 5 }, alignItems: "center" }}>
-            <NavIconButton onClick={() => handleBack(selectionStack.length - 1)}>
-              <ArrowBackIcon />
-            </NavIconButton>
-            <Stack spacing={0.25} sx={{ flex: 1, textAlign: "center" }}>
-              <Typography variant="body2" sx={{ fontSize: { xs: "0.85rem", sm: "0.95rem" }, fontWeight: 500, color: colors.lightText }}>
-                {level1Item?.name ?? ""}
-              </Typography>
-              {level2Item && (
-                <Typography variant="caption" sx={{ fontSize: { xs: "0.75rem", sm: "0.8rem" }, fontWeight: 600, color: colors.primary, letterSpacing: "0.05em", textTransform: "uppercase" }}>
-                  {level2Item.name}
+          {!hideMenuEnabled && (
+            <Stack direction="row" spacing={1.5} sx={{ mb: { xs: 4, sm: 5 }, alignItems: "center" }}>
+              <NavIconButton onClick={() => handleBack(selectionStack.length - 1)}>
+                <ArrowBackIcon />
+              </NavIconButton>
+              <Stack spacing={0.25} sx={{ flex: 1, textAlign: "center" }}>
+                <Typography variant="body2" sx={{ fontSize: { xs: "0.85rem", sm: "0.95rem" }, fontWeight: 500, color: colors.lightText }}>
+                  {level1Item?.name ?? ""}
                 </Typography>
-              )}
+                {level2Item && (
+                  <Typography variant="caption" sx={{ fontSize: { xs: "0.75rem", sm: "0.8rem" }, fontWeight: 600, color: colors.primary, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                    {level2Item.name}
+                  </Typography>
+                )}
+              </Stack>
+              <NavIconButton onClick={() => handleBack(0)}>
+                <HomeIcon />
+              </NavIconButton>
             </Stack>
-            <NavIconButton onClick={() => handleBack(0)}>
-              <HomeIcon />
-            </NavIconButton>
-          </Stack>
+          )}
 
           {(currentLevel.sectionTitle || currentLevel.sectionSubtitle) && (
             <Stack spacing={2} sx={{ mb: { xs: 4, sm: 5 }, textAlign: "center" }}>
@@ -798,24 +821,26 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
         <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column", bgcolor: colors.lightBg, py: { xs: 4, sm: 5, md: 7 }, pt: previewPt }}>
           {previewBanner}
           <Container maxWidth="md">
-            <Stack direction="row" spacing={1.5} sx={{ mb: { xs: 4, sm: 5 }, alignItems: "center" }}>
-              <NavIconButton onClick={() => handleBack(selectionStack.length - 1)}>
-                <ArrowBackIcon />
-              </NavIconButton>
-              <Stack spacing={0.25} sx={{ flex: 1, textAlign: "center" }}>
-                <Typography variant="body2" sx={{ fontSize: { xs: "0.85rem", sm: "0.95rem" }, fontWeight: 500, color: colors.lightText }}>
-                  {level1Item?.name ?? ""}
-                </Typography>
-                {level2Item && (
-                  <Typography variant="caption" sx={{ fontSize: { xs: "0.75rem", sm: "0.8rem" }, fontWeight: 600, color: colors.primary, letterSpacing: "0.05em", textTransform: "uppercase" }}>
-                    {level2Item.name}
+            {!hideMenuEnabled && (
+              <Stack direction="row" spacing={1.5} sx={{ mb: { xs: 4, sm: 5 }, alignItems: "center" }}>
+                <NavIconButton onClick={() => handleBack(selectionStack.length - 1)}>
+                  <ArrowBackIcon />
+                </NavIconButton>
+                <Stack spacing={0.25} sx={{ flex: 1, textAlign: "center" }}>
+                  <Typography variant="body2" sx={{ fontSize: { xs: "0.85rem", sm: "0.95rem" }, fontWeight: 500, color: colors.lightText }}>
+                    {level1Item?.name ?? ""}
                   </Typography>
-                )}
+                  {level2Item && (
+                    <Typography variant="caption" sx={{ fontSize: { xs: "0.75rem", sm: "0.8rem" }, fontWeight: 600, color: colors.primary, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                      {level2Item.name}
+                    </Typography>
+                  )}
+                </Stack>
+                <NavIconButton onClick={() => handleBack(0)}>
+                  <HomeIcon />
+                </NavIconButton>
               </Stack>
-              <NavIconButton onClick={() => handleBack(0)}>
-                <HomeIcon />
-              </NavIconButton>
-            </Stack>
+            )}
             <Stack alignItems="center" sx={{ mt: { xs: 6, sm: 8 }, textAlign: "center" }}>
               <Alert severity="info">Content unavailable, check with staff</Alert>
             </Stack>
@@ -834,24 +859,26 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
 
         <Box sx={{ py: { xs: 4, sm: 5, md: 7 } }}>
           <Container maxWidth="md">
-            <Stack direction="row" spacing={1.5} sx={{ mb: { xs: 4, sm: 5 }, alignItems: "center" }}>
-              <NavIconButton onClick={() => handleBack(selectionStack.length - 1)}>
-                <ArrowBackIcon />
-              </NavIconButton>
-              <Stack spacing={0.25} sx={{ flex: 1, textAlign: "center" }}>
-                <Typography variant="body2" sx={{ fontSize: { xs: "0.85rem", sm: "0.95rem" }, fontWeight: 500, color: colors.lightText }}>
-                  {level1Item?.name ?? ""}
-                </Typography>
-                {level2Item && (
-                  <Typography variant="caption" sx={{ fontSize: { xs: "0.75rem", sm: "0.8rem" }, fontWeight: 600, color: colors.primary, letterSpacing: "0.05em", textTransform: "uppercase" }}>
-                    {level2Item.name}
+            {!hideMenuEnabled && (
+              <Stack direction="row" spacing={1.5} sx={{ mb: { xs: 4, sm: 5 }, alignItems: "center" }}>
+                <NavIconButton onClick={() => handleBack(selectionStack.length - 1)}>
+                  <ArrowBackIcon />
+                </NavIconButton>
+                <Stack spacing={0.25} sx={{ flex: 1, textAlign: "center" }}>
+                  <Typography variant="body2" sx={{ fontSize: { xs: "0.85rem", sm: "0.95rem" }, fontWeight: 500, color: colors.lightText }}>
+                    {level1Item?.name ?? ""}
                   </Typography>
-                )}
+                  {level2Item && (
+                    <Typography variant="caption" sx={{ fontSize: { xs: "0.75rem", sm: "0.8rem" }, fontWeight: 600, color: colors.primary, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                      {level2Item.name}
+                    </Typography>
+                  )}
+                </Stack>
+                <NavIconButton onClick={() => handleBack(0)}>
+                  <HomeIcon />
+                </NavIconButton>
               </Stack>
-              <NavIconButton onClick={() => handleBack(0)}>
-                <HomeIcon />
-              </NavIconButton>
-            </Stack>
+            )}
 
             <Box
               sx={{

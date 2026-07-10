@@ -7,9 +7,12 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
+  Stack,
+  Switch,
   Typography,
 } from "@mui/material";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DIALOG_PAPER_SX, DIALOG_ACTIONS_SX, PRIMARY_BTN_SX, CANCEL_BTN_SX } from "./dialogStyles";
 
 type Props = {
@@ -21,9 +24,23 @@ type Props = {
 
 export default function CopyLinkDialog({ open, onClose, url, itemName }: Props) {
   const [copied, setCopied] = useState(false);
+  const [hideMenu, setHideMenu] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setHideMenu(false);
+    }
+  }, [open]);
+
+  const shareUrl = (() => {
+    const shareUrlObj = new URL(url);
+    if (hideMenu) shareUrlObj.searchParams.set("hideMenu", "1");
+    else shareUrlObj.searchParams.delete("hideMenu");
+    return shareUrlObj.toString();
+  })();
 
   function copy() {
-    void navigator.clipboard.writeText(url).then(() => {
+    void navigator.clipboard.writeText(shareUrl).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
@@ -38,14 +55,20 @@ export default function CopyLinkDialog({ open, onClose, url, itemName }: Props) 
         <Typography variant="body2" color="text.secondary">{itemName}</Typography>
       </DialogTitle>
       <DialogContent sx={{ paddingTop: "24px !important", bgcolor: "#ffffff" }}>
-        <Box sx={{ bgcolor: "#f9f9f9", borderRadius: 2, border: "1px solid #E5E1D7", p: 2 }}>
-          <Typography
-            variant="body2"
-            sx={{ fontFamily: "monospace", fontSize: "0.75rem", wordBreak: "break-all", color: "#45443F" }}
-          >
-            {url}
-          </Typography>
-        </Box>
+        <Stack spacing={2}>
+          <FormControlLabel
+            control={<Switch checked={hideMenu} onChange={(_, checked) => setHideMenu(checked)} />}
+            label="Hide top menu in student view"
+          />
+          <Box sx={{ bgcolor: "#f9f9f9", borderRadius: 2, border: "1px solid #E5E1D7", p: 2 }}>
+            <Typography
+              variant="body2"
+              sx={{ fontFamily: "monospace", fontSize: "0.75rem", wordBreak: "break-all", color: "#45443F" }}
+            >
+              {shareUrl}
+            </Typography>
+          </Box>
+        </Stack>
       </DialogContent>
       <DialogActions sx={{ ...DIALOG_ACTIONS_SX, gap: 1 }}>
         <Button

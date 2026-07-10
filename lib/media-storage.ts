@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 
-import { bucket } from "./firebase-admin";
+import { getBucket } from "./firebase-admin";
 
 const DATA_URL_REGEX = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/;
 const STORAGE_PREFIX = process.env.STORAGE_PATH_PREFIX;
@@ -9,9 +9,9 @@ function prefixedPath(path: string): string {
   return STORAGE_PREFIX ? `${STORAGE_PREFIX}/${path}` : path;
 }
 
-function toDownloadUrl(path: string, token: string): string {
+function toDownloadUrl(path: string, token: string, bucketName: string): string {
   const encodedPath = encodeURIComponent(prefixedPath(path));
-  return `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${token}`;
+  return `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodedPath}?alt=media&token=${token}`;
 }
 
 export async function resolveImageUrl(value: string | undefined, path: string): Promise<string> {
@@ -28,6 +28,11 @@ export async function resolveImageUrl(value: string | undefined, path: string): 
   const matched = input.match(DATA_URL_REGEX);
   if (!matched) {
     throw new Error("Image must be a valid URL or data URL.");
+  }
+
+  const bucket = getBucket();
+  if (!bucket) {
+    throw new Error("Firebase storage is not configured. Set FIREBASE_STORAGE_BUCKET for this environment.");
   }
 
   const contentType = matched[1];
@@ -47,5 +52,5 @@ export async function resolveImageUrl(value: string | undefined, path: string): 
     },
   });
 
-  return toDownloadUrl(path, token);
+  return toDownloadUrl(path, token, bucket.name);
 }
