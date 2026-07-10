@@ -64,6 +64,7 @@ function sanitizeHtml(html: string): string {
     .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
     .replace(/\s+on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
     .replace(/\s+srcdoc\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/\s+loading\s*=\s*("|')lazy\1/gi, ' loading="eager"')
     .replace(
       /<(?!\/?(p|br|ul|ol|li|b|strong|i|em|h1|h2|h3|h4|h5|h6|a|img|iframe|div|span|blockquote|table|thead|tbody|tr|th|td)(\s+[^>]*)?>)[^>]*>/gi,
       "",
@@ -317,6 +318,103 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
     const rels = (state.relationships[parentLevel!.id]?.[relKey] ?? []) as RelationshipEntry[];
     return Object.fromEntries(rels.map((r) => [r.childItemId, r.published]));
   }, [state, currentLevel, selectionStack, parentLevel, parentEntry]);
+
+  const renderedStepCards = useMemo(() => currentSteps.map((step, index) => {
+    const embedUrl = step.videoUrl ? getVideoEmbedUrl(step.videoUrl) : null;
+    const isDirectVideo = /\.(mp4|webm|ogg)(\?.*)?$/i.test(step.videoUrl ?? "");
+    const contentIncludesImage = step.imageUrl ? step.contentHtml.includes(step.imageUrl) : false;
+    const sanitizedContentHtml = step.contentHtml ? sanitizeHtml(step.contentHtml) : "";
+
+    return (
+      <Card
+        key={step.id}
+        ref={(el) => { stepRefs.current[index] = el; }}
+        data-step-index={index}
+        sx={{ borderRadius: "8px", border: "none", backgroundColor: colors.cardBg, boxShadow: colors.cardShadow, overflow: "hidden" }}
+      >
+        <CardContent sx={{ p: { xs: 2.5, sm: 3.5 } }}>
+          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: { xs: 2, sm: 2.5 } }}>
+            <Box
+              sx={{
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                width: 40, height: 40, bgcolor: colors.darkBg, color: colors.lightBg,
+                fontWeight: 700, borderRadius: 1, fontSize: "1.1rem", flexShrink: 0,
+              }}
+            >
+              {index + 1}
+            </Box>
+            {step.title && (
+              <Typography variant="h6" sx={{ fontSize: { xs: "1rem", sm: "1.1rem" }, fontWeight: 600, color: colors.primary }}>
+                {step.title}
+              </Typography>
+            )}
+          </Stack>
+
+          {sanitizedContentHtml && (
+            <Box
+              sx={{
+                fontSize: { xs: "0.95rem", sm: "1rem" }, color: colors.text, lineHeight: 1.6,
+                mb: { xs: 2, sm: 3 }, wordBreak: "break-word",
+                "& p": { mb: 1 }, "& ul, & ol": { pl: 2, mb: 1 }, "& li": { mb: 0.5 },
+                "& strong, & b": { fontWeight: 700 }, "& em, & i": { fontStyle: "italic" },
+                "& a": { color: colors.primary, textDecoration: "underline", "&:hover": { opacity: 0.8 } },
+                "& img": { maxWidth: "100%", height: "auto", borderRadius: 1 },
+                "& iframe": { maxWidth: "100%", border: "none", borderRadius: 1 },
+                "& .emble-columns-container": { display: "grid", gap: 2 },
+                "& .emble-columns-child": { minWidth: 0 },
+                "@media (min-width: 700px)": {
+                  "& .emble-columns-container": {
+                    gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+                  },
+                },
+              }}
+              dangerouslySetInnerHTML={{ __html: sanitizedContentHtml }}
+            />
+          )}
+
+          {step.imageUrl && !contentIncludesImage && (
+            <Box
+              onClick={() => { setEnlargedImage(step.imageUrl); setImgZoom(1); }}
+              sx={{
+                position: "relative", width: "100%", paddingBottom: "60%",
+                overflow: "hidden", borderRadius: 1, bgcolor: "#FDF9F1",
+                cursor: "pointer", transition: "all 0.2s ease",
+                mb: embedUrl ? { xs: 2, sm: 3 } : 0,
+                "&:hover": { boxShadow: colors.cardShadowHover },
+              }}
+            >
+              <Image
+                src={step.imageUrl}
+                alt={step.title}
+                fill
+                style={{ objectFit: "contain" }}
+                sizes="(max-width: 600px) 100vw, (max-width: 960px) 90vw, 800px"
+              />
+            </Box>
+          )}
+
+          {embedUrl && (
+            isDirectVideo ? (
+              <Box component="video" controls sx={{ width: "100%", borderRadius: 1 }}>
+                <source src={step.videoUrl} />
+              </Box>
+            ) : (
+              <Box sx={{ position: "relative", width: "100%", paddingBottom: "56.25%", borderRadius: 1, overflow: "hidden" }}>
+                <Box
+                  component="iframe"
+                  src={embedUrl}
+                  loading="eager"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  sx={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" }}
+                />
+              </Box>
+            )
+          )}
+        </CardContent>
+      </Card>
+    );
+  }), [currentSteps]);
 
   // ── Path builder (uses state closure) ────────────────────────────────
 
@@ -917,99 +1015,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
             </Box>
 
             <Stack spacing={{ xs: 3, sm: 4 }} sx={{ pb: { xs: 6, sm: 8 } }}>
-              {currentSteps.map((step, index) => {
-                const embedUrl = step.videoUrl ? getVideoEmbedUrl(step.videoUrl) : null;
-                const isDirectVideo = /\.(mp4|webm|ogg)(\?.*)?$/i.test(step.videoUrl ?? "");
-                const contentIncludesImage = step.imageUrl ? step.contentHtml.includes(step.imageUrl) : false;
-                return (
-                  <Card
-                    key={step.id}
-                    ref={(el) => { stepRefs.current[index] = el; }}
-                    data-step-index={index}
-                    sx={{ borderRadius: "8px", border: "none", backgroundColor: colors.cardBg, boxShadow: colors.cardShadow, overflow: "hidden" }}
-                  >
-                    <CardContent sx={{ p: { xs: 2.5, sm: 3.5 } }}>
-                      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: { xs: 2, sm: 2.5 } }}>
-                        <Box
-                          sx={{
-                            display: "inline-flex", alignItems: "center", justifyContent: "center",
-                            width: 40, height: 40, bgcolor: colors.darkBg, color: colors.lightBg,
-                            fontWeight: 700, borderRadius: 1, fontSize: "1.1rem", flexShrink: 0,
-                          }}
-                        >
-                          {index + 1}
-                        </Box>
-                        {step.title && (
-                          <Typography variant="h6" sx={{ fontSize: { xs: "1rem", sm: "1.1rem" }, fontWeight: 600, color: colors.primary }}>
-                            {step.title}
-                          </Typography>
-                        )}
-                      </Stack>
-
-                      {step.contentHtml && (
-                        <Box
-                          sx={{
-                            fontSize: { xs: "0.95rem", sm: "1rem" }, color: colors.text, lineHeight: 1.6,
-                            mb: { xs: 2, sm: 3 }, wordBreak: "break-word",
-                            "& p": { mb: 1 }, "& ul, & ol": { pl: 2, mb: 1 }, "& li": { mb: 0.5 },
-                            "& strong, & b": { fontWeight: 700 }, "& em, & i": { fontStyle: "italic" },
-                            "& a": { color: colors.primary, textDecoration: "underline", "&:hover": { opacity: 0.8 } },
-                            "& img": { maxWidth: "100%", height: "auto", borderRadius: 1 },
-                            "& iframe": { maxWidth: "100%", border: "none", borderRadius: 1 },
-                            "& .emble-columns-container": { display: "grid", gap: 2 },
-                            "& .emble-columns-child": { minWidth: 0 },
-                            "@media (min-width: 700px)": {
-                              "& .emble-columns-container": {
-                                gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-                              },
-                            },
-                          }}
-                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(step.contentHtml) }}
-                        />
-                      )}
-
-                      {step.imageUrl && !contentIncludesImage && (
-                        <Box
-                          onClick={() => { setEnlargedImage(step.imageUrl); setImgZoom(1); }}
-                          sx={{
-                            position: "relative", width: "100%", paddingBottom: "60%",
-                            overflow: "hidden", borderRadius: 1, bgcolor: "#FDF9F1",
-                            cursor: "pointer", transition: "all 0.2s ease",
-                            mb: embedUrl ? { xs: 2, sm: 3 } : 0,
-                            "&:hover": { boxShadow: colors.cardShadowHover },
-                          }}
-                        >
-                          <Image
-                            src={step.imageUrl}
-                            alt={step.title}
-                            fill
-                            style={{ objectFit: "contain" }}
-                            sizes="(max-width: 600px) 100vw, (max-width: 960px) 90vw, 800px"
-                          />
-                        </Box>
-                      )}
-
-                      {embedUrl && (
-                        isDirectVideo ? (
-                          <Box component="video" controls sx={{ width: "100%", borderRadius: 1 }}>
-                            <source src={step.videoUrl} />
-                          </Box>
-                        ) : (
-                          <Box sx={{ position: "relative", width: "100%", paddingBottom: "56.25%", borderRadius: 1, overflow: "hidden" }}>
-                            <Box
-                              component="iframe"
-                              src={embedUrl}
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                              allowFullScreen
-                              sx={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" }}
-                            />
-                          </Box>
-                        )
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
+              {renderedStepCards}
             </Stack>
           </Container>
         </Box>
