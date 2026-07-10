@@ -23,6 +23,7 @@ import {
   Home as HomeIcon,
   Image as ImageIcon,
   Info as InfoIcon,
+  KeyboardArrowDown as KeyboardArrowDownIcon,
   KeyboardArrowUp as KeyboardArrowUpIcon,
   Remove as RemoveIcon,
 } from "@mui/icons-material";
@@ -45,6 +46,7 @@ const colors = {
   cardBg: "#FFFFFF",
   cardShadow: "0 2px 8px rgba(69, 68, 63, 0.08)",
   cardShadowHover: "0 8px 16px rgba(69, 68, 63, 0.12)",
+  stepNumberBg: "#e61e2a",
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -260,12 +262,13 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
   const [imgZoom, setImgZoom] = useState(1);
-  const [showBackToTop, setShowBackToTop] = useState(false);
   const [hideMenuEnabled, setHideMenuEnabled] = useState(false);
 
   const stepRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const visibleStepsRef = useRef(new Set<number>());
+  const stepRatiosRef = useRef(new Map<number, number>());
   const lastTrackedStep = useRef(-1);
+  const suppressObserverRef = useRef(false);
+  const suppressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Derived ─────────────────────────────────────────────────────────
 
@@ -330,21 +333,27 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
         key={step.id}
         ref={(el) => { stepRefs.current[index] = el; }}
         data-step-index={index}
-        sx={{ borderRadius: "8px", border: "none", backgroundColor: colors.cardBg, boxShadow: colors.cardShadow, overflow: "hidden" }}
+        sx={{
+          borderRadius: "8px", border: "none", backgroundColor: colors.cardBg, boxShadow: colors.cardShadow, overflow: "hidden",
+          scrollMarginTop: { xs: 90, sm: 110, md: 120 },
+        }}
       >
         <CardContent sx={{ p: { xs: 2.5, sm: 3.5 } }}>
           <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: { xs: 2, sm: 2.5 } }}>
             <Box
               sx={{
                 display: "inline-flex", alignItems: "center", justifyContent: "center",
-                width: 40, height: 40, bgcolor: colors.darkBg, color: colors.lightBg,
+                width: 40, height: 40, bgcolor: colors.stepNumberBg, color: "#FFFFFF",
                 fontWeight: 700, borderRadius: 1, fontSize: "1.1rem", flexShrink: 0,
               }}
             >
               {index + 1}
             </Box>
             {step.title && (
-              <Typography variant="h6" sx={{ fontSize: { xs: "1rem", sm: "1.1rem" }, fontWeight: 600, color: colors.primary }}>
+              <Typography
+                variant="h2"
+                sx={{ fontSize: { xs: "1.25rem", sm: "1.5rem", md: "1.75rem" }, fontWeight: 800, letterSpacing: "-0.01em", color: colors.primary }}
+              >
                 {step.title}
               </Typography>
             )}
@@ -352,13 +361,21 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
 
           {sanitizedContentHtml && (
             <Box
+              onClick={(e) => {
+                const target = e.target as HTMLElement;
+                if (target.tagName === "IMG") {
+                  const src = (target as HTMLImageElement).src;
+                  if (src) { setEnlargedImage(src); setImgZoom(1); }
+                }
+              }}
               sx={{
                 fontSize: { xs: "0.95rem", sm: "1rem" }, color: colors.text, lineHeight: 1.6,
                 mb: { xs: 2, sm: 3 }, wordBreak: "break-word",
                 "& p": { mb: 1 }, "& ul, & ol": { pl: 2, mb: 1 }, "& li": { mb: 0.5 },
                 "& strong, & b": { fontWeight: 700 }, "& em, & i": { fontStyle: "italic" },
                 "& a": { color: colors.primary, textDecoration: "underline", "&:hover": { opacity: 0.8 } },
-                "& img": { maxWidth: "100%", height: "auto", borderRadius: 1 },
+                "& img": { maxWidth: "100%", height: "auto", borderRadius: 1, cursor: "zoom-in", transition: "opacity 0.2s ease" },
+                "& img:hover": { opacity: 0.85 },
                 "& iframe": { maxWidth: "100%", border: "none", borderRadius: 1 },
                 "& .emble-columns-container": { display: "grid", gap: 2 },
                 "& .emble-columns-child": { minWidth: 0 },
@@ -582,20 +599,11 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
     return () => window.removeEventListener("popstate", onPopState);
   }, [state]);
 
-  // ── Scroll / back-to-top ──────────────────────────────────────────────
-
-  useEffect(() => {
-    if (!atSteps) { setShowBackToTop(false); return; }
-    function onScroll() { setShowBackToTop(window.scrollY > 400); }
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [atSteps]);
-
   // ── Step intersection observer ────────────────────────────────────────
 
   useEffect(() => {
     if (!atSteps || currentSteps.length === 0) return;
-    visibleStepsRef.current.clear();
+    stepRatiosRef.current.clear();
     lastTrackedStep.current = -1;
 
     const observer = new IntersectionObserver(
@@ -603,15 +611,24 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
         entries.forEach((entry) => {
           const idx = Number(entry.target.getAttribute("data-step-index"));
           if (entry.isIntersecting) {
-            visibleStepsRef.current.add(idx);
+            stepRatiosRef.current.set(idx, entry.intersectionRatio);
           } else {
-            visibleStepsRef.current.delete(idx);
+            stepRatiosRef.current.delete(idx);
           }
         });
-        const visible = [...visibleStepsRef.current].sort((a, b) => a - b);
-        if (visible.length > 0) setActiveStepIndex(visible[0]);
+        if (suppressObserverRef.current) return;
+
+        // Pick whichever step is most visible right now, not just the earliest
+        // one still partially on screen — a "lowest index wins" rule lags behind
+        // the real scroll position, especially for tall steps like Preparation.
+        let bestIdx = -1;
+        let bestRatio = 0;
+        stepRatiosRef.current.forEach((ratio, idx) => {
+          if (ratio > bestRatio) { bestRatio = ratio; bestIdx = idx; }
+        });
+        if (bestIdx >= 0) setActiveStepIndex(bestIdx);
       },
-      { threshold: 0.2 },
+      { threshold: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1] },
     );
 
     stepRefs.current.forEach((el) => el && observer.observe(el));
@@ -673,6 +690,35 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
 
     saveProgress(newStack);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function goToStep(index: number) {
+    const target = stepRefs.current[index];
+    if (!target) return;
+
+    suppressObserverRef.current = true;
+    setActiveStepIndex(index);
+
+    // Deliberately not a smooth scroll: the step arrows can disable themselves
+    // immediately on arrival (e.g. reaching the first/last step), which shifts
+    // focus and reliably cuts a smooth-scroll animation short mid-flight. An
+    // instant jump isn't interruptible the same way.
+    const headerOffset = window.innerWidth >= 900 ? 120 : window.innerWidth >= 600 ? 110 : 90;
+    const targetY = target.getBoundingClientRect().top + window.scrollY - headerOffset;
+    window.scrollTo({ top: Math.max(0, targetY), behavior: "auto" });
+
+    if (suppressTimeoutRef.current) window.clearTimeout(suppressTimeoutRef.current);
+    suppressTimeoutRef.current = setTimeout(() => {
+      suppressObserverRef.current = false;
+    }, 1000);
+  }
+
+  function goToPrevStep() {
+    if (activeStepIndex > 0) goToStep(activeStepIndex - 1);
+  }
+
+  function goToNextStep() {
+    if (activeStepIndex < currentSteps.length - 1) goToStep(activeStepIndex + 1);
   }
 
   // ── Preview banner ────────────────────────────────────────────────────
@@ -1054,20 +1100,37 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
           </Box>
         </Modal>
 
-        {showBackToTop && (
+        <Stack
+          spacing={1}
+          sx={{ position: "fixed", bottom: 72, right: 24, zIndex: 20 }}
+        >
           <Fab
             size="small"
-            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            onClick={goToPrevStep}
+            disabled={activeStepIndex <= 0}
             sx={{
-              position: "fixed", bottom: 72, right: 24, zIndex: 20,
               bgcolor: colors.primary, color: "#ffffff",
               "&:hover": { bgcolor: colors.darkBg },
+              "&.Mui-disabled": { bgcolor: colors.lightBorder, color: colors.lightText },
               boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
             }}
           >
             <KeyboardArrowUpIcon />
           </Fab>
-        )}
+          <Fab
+            size="small"
+            onClick={goToNextStep}
+            disabled={currentSteps.length === 0 || activeStepIndex >= currentSteps.length - 1}
+            sx={{
+              bgcolor: colors.primary, color: "#ffffff",
+              "&:hover": { bgcolor: colors.darkBg },
+              "&.Mui-disabled": { bgcolor: colors.lightBorder, color: colors.lightText },
+              boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+            }}
+          >
+            <KeyboardArrowDownIcon />
+          </Fab>
+        </Stack>
       </Box>
     );
   }
