@@ -25,7 +25,9 @@ import {
   Info as InfoIcon,
   KeyboardArrowDown as KeyboardArrowDownIcon,
   KeyboardArrowUp as KeyboardArrowUpIcon,
+  Print as PrintIcon,
   Remove as RemoveIcon,
+  Videocam as VideocamIcon,
 } from "@mui/icons-material";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { trackEvent } from "./GoogleAnalytics";
@@ -336,6 +338,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
         sx={{
           borderRadius: "8px", border: "none", backgroundColor: colors.cardBg, boxShadow: colors.cardShadow, overflow: "hidden",
           scrollMarginTop: { xs: 90, sm: 110, md: 120 },
+          "@media print": { breakInside: "avoid", boxShadow: "none", border: `1px solid ${colors.lightBorder}` },
         }}
       >
         <CardContent sx={{ p: { xs: 2.5, sm: 3.5 } }}>
@@ -345,6 +348,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                 display: "inline-flex", alignItems: "center", justifyContent: "center",
                 width: 40, height: 40, bgcolor: colors.stepNumberBg, color: "#FFFFFF",
                 fontWeight: 700, borderRadius: 1, fontSize: "1.1rem", flexShrink: 0,
+                WebkitPrintColorAdjust: "exact", printColorAdjust: "exact",
               }}
             >
               {index + 1}
@@ -411,22 +415,44 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
           )}
 
           {embedUrl && (
-            isDirectVideo ? (
-              <Box component="video" controls sx={{ width: "100%", borderRadius: 1 }}>
-                <source src={step.videoUrl} />
+            <>
+              {/* Video players don't render meaningfully on paper — iframes print
+                  blank and native <video> controls print as a static, off-center
+                  timer overlay. Show the real player on screen, swap to a plain
+                  labeled note for print instead of a broken-looking snapshot. */}
+              <Box sx={{ "@media print": { display: "none" } }}>
+                {isDirectVideo ? (
+                  <Box component="video" controls sx={{ width: "100%", borderRadius: 1 }}>
+                    <source src={step.videoUrl} />
+                  </Box>
+                ) : (
+                  <Box sx={{ position: "relative", width: "100%", paddingBottom: "56.25%", borderRadius: 1, overflow: "hidden" }}>
+                    <Box
+                      component="iframe"
+                      src={embedUrl}
+                      loading="eager"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      sx={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" }}
+                    />
+                  </Box>
+                )}
               </Box>
-            ) : (
-              <Box sx={{ position: "relative", width: "100%", paddingBottom: "56.25%", borderRadius: 1, overflow: "hidden" }}>
-                <Box
-                  component="iframe"
-                  src={embedUrl}
-                  loading="eager"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                  sx={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" }}
-                />
+              <Box
+                sx={{
+                  display: "none",
+                  "@media print": {
+                    display: "flex", alignItems: "center", gap: 1,
+                    border: `1px solid ${colors.lightBorder}`, borderRadius: 1, p: 1.5,
+                  },
+                }}
+              >
+                <VideocamIcon sx={{ fontSize: 20, color: colors.lightText, flexShrink: 0 }} />
+                <Typography sx={{ fontSize: "0.85rem", color: colors.lightText, wordBreak: "break-all" }}>
+                  This step includes a video — watch it online: {step.videoUrl}
+                </Typography>
               </Box>
-            )
+            </>
           )}
         </CardContent>
       </Card>
@@ -1022,13 +1048,13 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
 
     return (
       <Box sx={{ minHeight: "100vh", bgcolor: colors.lightBg }}>
-        {previewBanner}
-        <Box sx={{ height: 3, bgcolor: colors.primary, mt: isPreviewMode ? "36px" : 0 }} />
+        <Box sx={{ "@media print": { display: "none" } }}>{previewBanner}</Box>
+        <Box sx={{ height: 3, bgcolor: colors.primary, mt: isPreviewMode ? "36px" : 0, "@media print": { display: "none" } }} />
 
         <Box sx={{ py: { xs: 4, sm: 5, md: 7 } }}>
           <Container maxWidth="md">
             {!hideMenuEnabled && (
-              <Stack direction="row" spacing={1.5} sx={{ mb: { xs: 4, sm: 5 }, alignItems: "center" }}>
+              <Stack direction="row" spacing={1.5} sx={{ mb: { xs: 4, sm: 5 }, alignItems: "center", "@media print": { display: "none" } }}>
                 <NavIconButton onClick={() => handleBack(selectionStack.length - 1)}>
                   <ArrowBackIcon />
                 </NavIconButton>
@@ -1057,6 +1083,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                 pb: 2, pt: 1,
                 mb: { xs: 2, sm: 3 },
                 textAlign: "center",
+                "@media print": { position: "static" },
               }}
             >
               <Typography
@@ -1065,12 +1092,31 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
               >
                 {lastItem?.name ?? ""}
               </Typography>
-              <Typography
-                variant="body1"
-                sx={{ fontSize: { xs: "0.9rem", sm: "1rem" }, fontWeight: 600, color: colors.text, letterSpacing: "0.05em" }}
-              >
-                STEP {currentSteps.length === 0 ? 0 : activeStepIndex + 1} OF {currentSteps.length}
-              </Typography>
+              <Box sx={{ position: "relative" }}>
+                <Typography
+                  variant="body1"
+                  sx={{
+                    fontSize: { xs: "0.9rem", sm: "1rem" }, fontWeight: 600, color: colors.text, letterSpacing: "0.05em",
+                    "@media print": { display: "none" },
+                  }}
+                >
+                  STEP {currentSteps.length === 0 ? 0 : activeStepIndex + 1} OF {currentSteps.length}
+                </Typography>
+                <Tooltip title="Print" arrow placement="top">
+                  <IconButton
+                    onClick={() => window.print()}
+                    size="small"
+                    aria-label="Print steps"
+                    sx={{
+                      position: "absolute", right: "5px", top: "50%", transform: "translateY(-50%)",
+                      color: colors.text,
+                      "@media print": { display: "none" },
+                    }}
+                  >
+                    <PrintIcon sx={{ fontSize: 18 }} />
+                  </IconButton>
+                </Tooltip>
+              </Box>
             </Box>
 
             <Stack spacing={{ xs: 3, sm: 4 }} sx={{ pb: { xs: 6, sm: 8 } }}>
@@ -1079,7 +1125,9 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
           </Container>
         </Box>
 
-        <Footer year={new Date().getFullYear()} isAdmin={false} />
+        <Box sx={{ "@media print": { display: "none" } }}>
+          <Footer year={new Date().getFullYear()} isAdmin={false} />
+        </Box>
 
         {/* Image zoom modal */}
         <Modal
@@ -1122,7 +1170,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
           return (
             <Stack
               spacing={1}
-              sx={{ position: "fixed", bottom: 72, right: 24, zIndex: 20 }}
+              sx={{ position: "fixed", bottom: 72, right: 24, zIndex: 20, "@media print": { display: "none" } }}
             >
               <Fab
                 component="a"
