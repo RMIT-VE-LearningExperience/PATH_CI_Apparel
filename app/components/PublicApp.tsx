@@ -267,8 +267,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
   const stepRefs = useRef<(HTMLDivElement | null)[]>([]);
   const stepRatiosRef = useRef(new Map<number, number>());
   const lastTrackedStep = useRef(-1);
-  const suppressObserverRef = useRef(false);
-  const suppressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const selectionStackRef = useRef<NavEntry[]>([]);
 
   // ── Derived ─────────────────────────────────────────────────────────
 
@@ -332,6 +331,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
       <Card
         key={step.id}
         ref={(el) => { stepRefs.current[index] = el; }}
+        id={`step-${index}`}
         data-step-index={index}
         sx={{
           borderRadius: "8px", border: "none", backgroundColor: colors.cardBg, boxShadow: colors.cardShadow, overflow: "hidden",
@@ -567,12 +567,31 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Keep a ref in sync so the popstate handler below (subscribed once per
+  // `state` change, not per navigation) can read the *current* selection
+  // without a stale closure.
+  useEffect(() => {
+    selectionStackRef.current = selectionStack;
+  }, [selectionStack]);
+
   // ── Popstate — browser back/forward ──────────────────────────────────
 
   useEffect(() => {
     if (!state) return;
     function onPopState() {
-      const slugParts = window.location.pathname.split("/").filter(Boolean);
+      const pathname = window.location.pathname;
+
+      // The step-navigation arrows use real #step-N anchors, which push their
+      // own browser-history entries. Back/forward through those fires popstate
+      // too, but the hierarchy selection (and therefore the pathname) hasn't
+      // actually changed — only the hash has. Resetting the steps view in that
+      // case would fight the native anchor scroll the user just triggered, so
+      // bail out and let the browser's own hash navigation do its thing.
+      if (pathname === resolvePathFromIds(selectionStackRef.current, state!)) {
+        return;
+      }
+
+      const slugParts = pathname.split("/").filter(Boolean);
       const levels = (state!.hierarchy.levels ?? [])
         .filter((l) => l.enabled)
         .sort((a, b) => a.order - b.order);
@@ -599,6 +618,23 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
     return () => window.removeEventListener("popstate", onPopState);
   }, [state]);
 
+  // ── Smooth scrolling for step anchors ──────────────────────────────────
+  // Scoped to the steps view only, so it doesn't affect scroll behavior
+  // elsewhere in the app (e.g. the instant top-scrolls in handleSelect/
+  // handleBack, which set their own behavior explicitly either way).
+
+  useEffect(() => {
+    if (!atSteps) return;
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReducedMotion) return;
+
+    const previous = document.documentElement.style.scrollBehavior;
+    document.documentElement.style.scrollBehavior = "smooth";
+    return () => {
+      document.documentElement.style.scrollBehavior = previous;
+    };
+  }, [atSteps]);
+
   // ── Step intersection observer ────────────────────────────────────────
 
   useEffect(() => {
@@ -616,7 +652,6 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
             stepRatiosRef.current.delete(idx);
           }
         });
-        if (suppressObserverRef.current) return;
 
         // Pick whichever step is most visible right now, not just the earliest
         // one still partially on screen — a "lowest index wins" rule lags behind
@@ -692,34 +727,12 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function goToStep(index: number) {
-    const target = stepRefs.current[index];
-    if (!target) return;
-
-    suppressObserverRef.current = true;
-    setActiveStepIndex(index);
-
-    // Deliberately not a smooth scroll: the step arrows can disable themselves
-    // immediately on arrival (e.g. reaching the first/last step), which shifts
-    // focus and reliably cuts a smooth-scroll animation short mid-flight. An
-    // instant jump isn't interruptible the same way.
-    const headerOffset = window.innerWidth >= 900 ? 120 : window.innerWidth >= 600 ? 110 : 90;
-    const targetY = target.getBoundingClientRect().top + window.scrollY - headerOffset;
-    window.scrollTo({ top: Math.max(0, targetY), behavior: "auto" });
-
-    if (suppressTimeoutRef.current) window.clearTimeout(suppressTimeoutRef.current);
-    suppressTimeoutRef.current = setTimeout(() => {
-      suppressObserverRef.current = false;
-    }, 1000);
-  }
-
-  function goToPrevStep() {
-    if (activeStepIndex > 0) goToStep(activeStepIndex - 1);
-  }
-
-  function goToNextStep() {
-    if (activeStepIndex < currentSteps.length - 1) goToStep(activeStepIndex + 1);
-  }
+  // Step-to-step navigation is now handled by real #step-N anchors (see the
+  // arrow buttons below) plus native `scroll-behavior: smooth`, rather than a
+  // JS-driven scroll. The arrows never carry the HTML `disabled` attribute —
+  // that forces an immediate blur on a native <button>, which reliably cut a
+  // JS-triggered smooth scroll short mid-animation. A real <a> with manual
+  // pointer-events/aria-disabled styling doesn't have that problem.
 
   // ── Preview banner ────────────────────────────────────────────────────
 
@@ -1100,37 +1113,52 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
           </Box>
         </Modal>
 
-        <Stack
-          spacing={1}
-          sx={{ position: "fixed", bottom: 72, right: 24, zIndex: 20 }}
-        >
-          <Fab
-            size="small"
-            onClick={goToPrevStep}
-            disabled={activeStepIndex <= 0}
-            sx={{
-              bgcolor: colors.primary, color: "#ffffff",
-              "&:hover": { bgcolor: colors.darkBg },
-              "&.Mui-disabled": { bgcolor: colors.lightBorder, color: colors.lightText },
-              boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
-            }}
-          >
-            <KeyboardArrowUpIcon />
-          </Fab>
-          <Fab
-            size="small"
-            onClick={goToNextStep}
-            disabled={currentSteps.length === 0 || activeStepIndex >= currentSteps.length - 1}
-            sx={{
-              bgcolor: colors.primary, color: "#ffffff",
-              "&:hover": { bgcolor: colors.darkBg },
-              "&.Mui-disabled": { bgcolor: colors.lightBorder, color: colors.lightText },
-              boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
-            }}
-          >
-            <KeyboardArrowDownIcon />
-          </Fab>
-        </Stack>
+        {(() => {
+          const atFirstStep = activeStepIndex <= 0;
+          const atLastStep = currentSteps.length === 0 || activeStepIndex >= currentSteps.length - 1;
+          const upTargetIndex = Math.max(0, activeStepIndex - 1);
+          const downTargetIndex = Math.min(Math.max(currentSteps.length - 1, 0), activeStepIndex + 1);
+
+          return (
+            <Stack
+              spacing={1}
+              sx={{ position: "fixed", bottom: 72, right: 24, zIndex: 20 }}
+            >
+              <Fab
+                component="a"
+                href={`#step-${upTargetIndex}`}
+                size="small"
+                aria-disabled={atFirstStep}
+                aria-label="Previous step"
+                sx={{
+                  bgcolor: atFirstStep ? colors.lightBorder : colors.primary,
+                  color: atFirstStep ? colors.lightText : "#ffffff",
+                  pointerEvents: atFirstStep ? "none" : "auto",
+                  "&:hover": { bgcolor: atFirstStep ? colors.lightBorder : colors.darkBg },
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+                }}
+              >
+                <KeyboardArrowUpIcon />
+              </Fab>
+              <Fab
+                component="a"
+                href={`#step-${downTargetIndex}`}
+                size="small"
+                aria-disabled={atLastStep}
+                aria-label="Next step"
+                sx={{
+                  bgcolor: atLastStep ? colors.lightBorder : colors.primary,
+                  color: atLastStep ? colors.lightText : "#ffffff",
+                  pointerEvents: atLastStep ? "none" : "auto",
+                  "&:hover": { bgcolor: atLastStep ? colors.lightBorder : colors.darkBg },
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+                }}
+              >
+                <KeyboardArrowDownIcon />
+              </Fab>
+            </Stack>
+          );
+        })()}
       </Box>
     );
   }
