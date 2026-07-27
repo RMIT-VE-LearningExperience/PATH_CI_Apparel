@@ -83,6 +83,38 @@ function sanitizeHtml(html: string): string {
     });
 }
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// Migrated step content (e.g. from Canvas) can have a video iframe baked
+// directly into the HTML, separate from the dedicated videoUrl field. Iframes
+// don't render meaningfully on paper, so insert a print-only placeholder right
+// after each one — it lands inside the same position:relative aspect-ratio
+// wrapper the iframe uses, so it fills the same reserved space in print. Pulls
+// the iframe's own title attribute in as a caption when present. Must run
+// *after* sanitizeHtml, since sanitizeHtml's tag whitelist would otherwise
+// strip the <svg>/<path> markup this injects.
+function addPrintVideoNotes(html: string): string {
+  return html.replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi, (match) => {
+    const titleMatch = match.match(/\btitle\s*=\s*"([^"]*)"/i) ?? match.match(/\btitle\s*=\s*'([^']*)'/i);
+    const title = titleMatch ? escapeHtml(titleMatch[1]) : "";
+    return (
+      match +
+      '<div class="print-video-note"><span class="play-button">' +
+      '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M8 5v14l11-7z" fill="#fff"/></svg>' +
+      "</span>" +
+      (title ? `<span class="video-title">Video: ${title}</span>` : "") +
+      "</div>"
+    );
+  });
+}
+
 // ── Nav icon button ───────────────────────────────────────────────────
 
 function NavIconButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
@@ -265,6 +297,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
   const [imgZoom, setImgZoom] = useState(1);
   const [hideMenuEnabled, setHideMenuEnabled] = useState(false);
+  const [isPreparingPrint, setIsPreparingPrint] = useState(false);
 
   const stepRefs = useRef<(HTMLDivElement | null)[]>([]);
   const stepRatiosRef = useRef(new Map<number, number>());
@@ -327,7 +360,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
     const embedUrl = step.videoUrl ? getVideoEmbedUrl(step.videoUrl) : null;
     const isDirectVideo = /\.(mp4|webm|ogg)(\?.*)?$/i.test(step.videoUrl ?? "");
     const contentIncludesImage = step.imageUrl ? step.contentHtml.includes(step.imageUrl) : false;
-    const sanitizedContentHtml = step.contentHtml ? sanitizeHtml(step.contentHtml) : "";
+    const sanitizedContentHtml = step.contentHtml ? addPrintVideoNotes(sanitizeHtml(step.contentHtml)) : "";
 
     return (
       <Card
@@ -386,6 +419,24 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                 "@media (min-width: 700px)": {
                   "& .emble-columns-container": {
                     gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+                  },
+                },
+                "& .print-video-note": { display: "none" },
+                "@media print": {
+                  "& iframe": { display: "none" },
+                  "& .print-video-note": {
+                    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1,
+                    position: "absolute", top: 0, left: 0, width: "100%", height: "100%",
+                    borderRadius: 1,
+                    background: `repeating-linear-gradient(135deg, ${colors.lightBorder}, ${colors.lightBorder} 12px, #f4f0e5 12px, #f4f0e5 24px)`,
+                  },
+                  "& .print-video-note .play-button": {
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    width: 56, height: 56, borderRadius: "50%", background: "rgba(69, 68, 63, 0.55)",
+                  },
+                  "& .print-video-note .video-title": {
+                    fontSize: "0.85rem", fontWeight: 600, color: colors.text,
+                    bgcolor: "rgba(255, 255, 255, 0.8)", px: 1.5, py: 0.5, borderRadius: 1,
                   },
                 },
               }}
@@ -661,6 +712,42 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
     };
   }, [atSteps]);
 
+  // ── Detach iframes for printing ────────────────────────────────────────
+  // The @media print rule that hides embedded video iframes doesn't reliably
+  // stop them from rasterizing as solid black rectangles in some browsers'
+  // print pipelines (a known iframe-compositing quirk, independent of our
+  // CSS). Actually removing the iframe's src during printing sidesteps it —
+  // there's no live iframe content left for the browser to paint. Scoped to
+  // beforeprint/afterprint so this applies no matter how printing is
+  // triggered (our button, Cmd/Ctrl+P, the browser menu, etc).
+
+  useEffect(() => {
+    function handleBeforePrint() {
+      document.querySelectorAll<HTMLIFrameElement>("[data-print-content] iframe").forEach((iframe) => {
+        if (iframe.src) {
+          iframe.dataset.savedSrc = iframe.src;
+          iframe.removeAttribute("src");
+        }
+      });
+    }
+
+    function handleAfterPrint() {
+      document.querySelectorAll<HTMLIFrameElement>("[data-print-content] iframe").forEach((iframe) => {
+        if (iframe.dataset.savedSrc) {
+          iframe.src = iframe.dataset.savedSrc;
+          delete iframe.dataset.savedSrc;
+        }
+      });
+    }
+
+    window.addEventListener("beforeprint", handleBeforePrint);
+    window.addEventListener("afterprint", handleAfterPrint);
+    return () => {
+      window.removeEventListener("beforeprint", handleBeforePrint);
+      window.removeEventListener("afterprint", handleAfterPrint);
+    };
+  }, []);
+
   // ── Step intersection observer ────────────────────────────────────────
 
   useEffect(() => {
@@ -751,6 +838,32 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
 
     saveProgress(newStack);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  // window.print() has no way to delay the print job for async work, so any
+  // image still mid-download at click time can end up missing from the
+  // printed/saved output — worse the less time has passed since the page
+  // loaded (e.g. printing immediately vs. after scrolling through everything
+  // first). Explicitly wait for every image to finish before printing.
+  async function handlePrintClick() {
+    setIsPreparingPrint(true);
+    try {
+      const images = Array.from(
+        document.querySelectorAll<HTMLImageElement>("[data-print-content] img"),
+      );
+      await Promise.all(
+        images.map((img) => {
+          if (img.complete) return Promise.resolve();
+          return new Promise<void>((resolve) => {
+            img.addEventListener("load", () => resolve(), { once: true });
+            img.addEventListener("error", () => resolve(), { once: true });
+          });
+        }),
+      );
+    } finally {
+      setIsPreparingPrint(false);
+      window.print();
+    }
   }
 
   // Step-to-step navigation is now handled by real #step-N anchors (see the
@@ -1102,24 +1215,30 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                 >
                   STEP {currentSteps.length === 0 ? 0 : activeStepIndex + 1} OF {currentSteps.length}
                 </Typography>
-                <Tooltip title="Print" arrow placement="top">
-                  <IconButton
-                    onClick={() => window.print()}
-                    size="small"
-                    aria-label="Print steps"
-                    sx={{
-                      position: "absolute", right: "5px", top: "50%", transform: "translateY(-50%)",
-                      color: colors.text,
-                      "@media print": { display: "none" },
-                    }}
-                  >
-                    <PrintIcon sx={{ fontSize: 18 }} />
-                  </IconButton>
+                <Tooltip title={isPreparingPrint ? "Preparing to print…" : "Print"} arrow placement="top">
+                  <span style={{ position: "absolute", right: "5px", top: "50%", transform: "translateY(-50%)" }}>
+                    <IconButton
+                      onClick={handlePrintClick}
+                      disabled={isPreparingPrint}
+                      size="small"
+                      aria-label="Print steps"
+                      sx={{
+                        color: colors.text,
+                        "@media print": { display: "none" },
+                      }}
+                    >
+                      {isPreparingPrint ? (
+                        <CircularProgress size={18} thickness={5} sx={{ color: colors.text }} />
+                      ) : (
+                        <PrintIcon sx={{ fontSize: 18 }} />
+                      )}
+                    </IconButton>
+                  </span>
                 </Tooltip>
               </Box>
             </Box>
 
-            <Stack spacing={{ xs: 3, sm: 4 }} sx={{ pb: { xs: 6, sm: 8 } }}>
+            <Stack data-print-content spacing={{ xs: 3, sm: 4 }} sx={{ pb: { xs: 6, sm: 8 } }}>
               {renderedStepCards}
             </Stack>
           </Container>
