@@ -7,9 +7,15 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControl,
   IconButton,
+  InputLabel,
+  MenuItem,
+  Select,
   Stack,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from "@mui/material";
 import { Add as AddIcon, Crop as CropIcon } from "@mui/icons-material";
@@ -34,7 +40,11 @@ type SaveData = {
   contentHtml: string;
   imageDataUrl: string;
   videoUrl: string;
+  stepType: "main" | "sub";
+  parentStepId: string | null;
 };
+
+type MainStepOption = { id: string; title: string };
 
 type Props = {
   open: boolean;
@@ -42,7 +52,11 @@ type Props = {
   onSave: (data: SaveData) => void;
   loading?: boolean;
   mode: "add" | "edit";
-  stepNumber?: number;
+  stepLabel?: string;
+  stepId?: string;
+  stepType: "main" | "sub";
+  parentStepId?: string | null;
+  mainSteps: MainStepOption[];
   initialData?: {
     title?: string;
     contentHtml?: string;
@@ -57,7 +71,11 @@ export default function AddEditStepDialog({
   onSave,
   loading,
   mode,
-  stepNumber,
+  stepLabel,
+  stepId,
+  stepType: initialStepType,
+  parentStepId: initialParentStepId,
+  mainSteps,
   initialData,
 }: Props) {
   const [title, setTitle] = useState("");
@@ -67,9 +85,15 @@ export default function AddEditStepDialog({
   const [imageError, setImageError] = useState("");
   const [compressed, setCompressed] = useState(false);
   const [cropOpen, setCropOpen] = useState(false);
+  const [stepType, setStepType] = useState<"main" | "sub">("main");
+  const [parentStepId, setParentStepId] = useState<string | null>(null);
+  const [mediaType, setMediaType] = useState<"image" | "video" | "none">("none");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const originalImageRef = useRef("");
   const prevOpenRef = useRef(false);
+
+  // Available parents exclude the step itself (a step can't be its own parent).
+  const parentOptions = mainSteps.filter((s) => s.id !== stepId);
 
   useEffect(() => {
     if (!open) {
@@ -86,7 +110,17 @@ export default function AddEditStepDialog({
     setImageError("");
     setCompressed(false);
     setCropOpen(false);
-  }, [open, initialData]);
+    setStepType(initialStepType);
+    setParentStepId(initialParentStepId ?? null);
+    setMediaType(initialData?.videoUrl ? "video" : initialData?.imageUrl ? "image" : "none");
+  }, [open, initialData, initialStepType, initialParentStepId]);
+
+  function handleMediaTypeChange(next: "image" | "video" | "none" | null) {
+    if (!next) return;
+    setMediaType(next);
+    if (next !== "video") setVideoUrl("");
+    if (next !== "image") clearImage();
+  }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -109,23 +143,64 @@ export default function AddEditStepDialog({
 
   function handleSave() {
     if (!title.trim()) return;
+    if (stepType === "sub" && !parentStepId) return;
     onSave({
       title: title.trim(),
       contentHtml,
       imageDataUrl,
       videoUrl: videoUrl.trim(),
+      stepType,
+      parentStepId: stepType === "sub" ? parentStepId : null,
     });
   }
 
   const embedUrl = getVideoEmbedUrl(videoUrl);
   const isDirectVideo = /\.(mp4|webm|ogg)(\?.*)?$/i.test(videoUrl);
+  const canSave = title.trim() && (stepType === "main" || !!parentStepId);
 
   return (
     <>
       <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth PaperProps={{ sx: DIALOG_PAPER_SX }}>
-        <DialogTitle sx={DIALOG_TITLE_SX}>Step {stepNumber ?? 1}</DialogTitle>
+        <DialogTitle sx={DIALOG_TITLE_SX}>Step {stepLabel ?? "1"}</DialogTitle>
         <DialogContent>
           <Stack spacing={2.5} sx={{ pt: 2 }}>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+              <FormControl size="small" sx={{ minWidth: 160 }} disabled={parentOptions.length === 0}>
+                <InputLabel id="step-type-label">Step type</InputLabel>
+                <Select
+                  labelId="step-type-label"
+                  label="Step type"
+                  value={stepType}
+                  onChange={(e) => {
+                    const next = e.target.value as "main" | "sub";
+                    setStepType(next);
+                    if (next === "sub" && !parentStepId) {
+                      setParentStepId(parentOptions[0]?.id ?? null);
+                    }
+                  }}
+                >
+                  <MenuItem value="main">Main step</MenuItem>
+                  <MenuItem value="sub" disabled={parentOptions.length === 0}>Sub-step</MenuItem>
+                </Select>
+              </FormControl>
+
+              {stepType === "sub" && (
+                <FormControl size="small" sx={{ minWidth: 200, flex: 1 }} required>
+                  <InputLabel id="parent-step-label">Under main step</InputLabel>
+                  <Select
+                    labelId="parent-step-label"
+                    label="Under main step"
+                    value={parentStepId ?? ""}
+                    onChange={(e) => setParentStepId(e.target.value || null)}
+                  >
+                    {parentOptions.map((s) => (
+                      <MenuItem key={s.id} value={s.id}>{s.title || "Untitled step"}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+            </Stack>
+
             <TextField
               label="Title"
               value={title}
@@ -138,12 +213,24 @@ export default function AddEditStepDialog({
 
             <RichTextEditor label="Content" value={contentHtml} onChange={setContentHtml} />
 
-            {/* Media section */}
+            {/* Media section: a step carries at most one of image or video */}
             <Box>
-              <Typography variant="body2" fontWeight={500} sx={{ mb: 1 }}>Image</Typography>
-              <Box>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>Optional</Typography>
+              <Typography variant="body2" fontWeight={500} sx={{ mb: 1 }}>Media</Typography>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>Optional &mdash; image or video, not both</Typography>
+              <ToggleButtonGroup
+                exclusive
+                size="small"
+                value={mediaType}
+                onChange={(_e, next) => handleMediaTypeChange(next)}
+                sx={{ mb: 2 }}
+              >
+                <ToggleButton value="none" sx={{ textTransform: "none" }}>None</ToggleButton>
+                <ToggleButton value="image" sx={{ textTransform: "none" }}>Image</ToggleButton>
+                <ToggleButton value="video" sx={{ textTransform: "none" }}>Video</ToggleButton>
+              </ToggleButtonGroup>
 
+              {mediaType === "image" && (
+              <Box>
                 {!imageDataUrl && (
                   <Stack direction="row" alignItems="center" spacing={1.5}>
                     <IconButton onClick={() => fileInputRef.current?.click()} sx={UPLOAD_BTN_SX}>
@@ -209,9 +296,10 @@ export default function AddEditStepDialog({
                   </Box>
                 )}
               </Box>
+              )}
 
-              {/* Video URL section */}
-              <Stack spacing={1.5} sx={{ mt: 2.5 }}>
+              {mediaType === "video" && (
+              <Stack spacing={1.5}>
                 <TextField
                   label="Video URL"
                   placeholder="YouTube, Vimeo, or direct .mp4 link"
@@ -245,6 +333,7 @@ export default function AddEditStepDialog({
                   </Box>
                 )}
               </Stack>
+              )}
             </Box>
           </Stack>
         </DialogContent>
@@ -255,7 +344,7 @@ export default function AddEditStepDialog({
           <Button
             onClick={handleSave}
             variant="contained"
-            disabled={loading || !title.trim()}
+            disabled={loading || !canSave}
             sx={PRIMARY_BTN_SX}
           >
             {loading

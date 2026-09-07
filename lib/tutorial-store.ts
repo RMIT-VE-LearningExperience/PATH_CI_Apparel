@@ -54,11 +54,14 @@ export type Step = {
   contentHtml: string;
   imageUrl: string;
   videoUrl?: string;
+  stepType: "main" | "sub";
+  parentStepId: string | null;
   order: number;
   createdAt: Date;
   lastModified: Date;
   modifiedBy: string;
 };
+
 
 export type DeletedItem = {
   id: string;
@@ -527,33 +530,64 @@ export async function removeInvalidChildren(
 
 // ============= STEPS =============
 
+type StepMeta = { id: string; order: number; stepType: "main" | "sub"; parentStepId: string | null };
+
+async function fetchStepMetas(parentItemId: string): Promise<StepMeta[]> {
+  const snap = await stepsCol(parentItemId).get();
+  return snap.docs
+    .map((doc) => ({
+      id: doc.id,
+      order: (doc.data().order as number) ?? 0,
+      stepType: (doc.data().stepType as "main" | "sub") ?? "main",
+      parentStepId: (doc.data().parentStepId as string | null) ?? null,
+    }))
+    .sort((a, b) => a.order - b.order);
+}
+
+// Index right after `parentId`'s contiguous run of sub-steps in an
+// order-sorted list (or the parent's own position + 1 if it has none yet).
+function blockEndIndex(list: StepMeta[], parentId: string): number {
+  const parentIdx = list.findIndex((s) => s.id === parentId);
+  if (parentIdx < 0) return list.length;
+  let end = parentIdx + 1;
+  while (end < list.length && list[end].stepType === "sub" && list[end].parentStepId === parentId) end++;
+  return end;
+}
+
 export async function addStep(
   parentItemId: string,
   title: string,
   contentHtml: string,
   imageDataUrl: string,
-  videoUrl?: string,
+  videoUrl: string | undefined,
+  stepType: "main" | "sub",
+  parentStepId: string | null,
   modifiedBy?: string,
 ): Promise<TutorialState> {
-  const snap = await stepsCol(parentItemId).get();
-  const maxOrder = snap.docs.reduce(
-    (max, doc) => Math.max(max, (doc.data().order as number) ?? 0),
-    -1,
-  );
+  const existing = await fetchStepMetas(parentItemId);
+  const isSub = stepType === "sub" && !!parentStepId;
+  const insertAt = isSub ? blockEndIndex(existing, parentStepId!) : existing.length;
 
   const ref = stepsCol(parentItemId).doc();
   const imageUrl = await resolveImageUrl(imageDataUrl, `steps/${parentItemId}/${ref.id}/image`);
 
-  await ref.set({
+  const batch = db.batch();
+  existing.slice(insertAt).forEach((step, i) => {
+    batch.update(stepsCol(parentItemId).doc(step.id), { order: insertAt + i + 1 });
+  });
+  batch.set(ref, {
     title,
     contentHtml,
     imageUrl,
     videoUrl: videoUrl ?? "",
-    order: maxOrder + 1,
+    stepType: isSub ? "sub" : "main",
+    parentStepId: isSub ? parentStepId : null,
+    order: insertAt,
     createdAt: FieldValue.serverTimestamp(),
     lastModified: FieldValue.serverTimestamp(),
     modifiedBy: modifiedBy ?? "system",
   });
+  await batch.commit();
 
   return getTutorialState();
 }
@@ -561,7 +595,14 @@ export async function addStep(
 export async function updateStep(
   parentItemId: string,
   stepId: string,
-  updates: { title?: string; contentHtml?: string; imageDataUrl?: string; videoUrl?: string },
+  updates: {
+    title?: string;
+    contentHtml?: string;
+    imageDataUrl?: string;
+    videoUrl?: string;
+    stepType?: "main" | "sub";
+    parentStepId?: string | null;
+  },
   modifiedBy?: string,
 ): Promise<TutorialState> {
   const fields: Record<string, unknown> = {
@@ -579,7 +620,50 @@ export async function updateStep(
     );
   }
 
-  await stepsCol(parentItemId).doc(stepId).update(fields);
+  const changingStructure = updates.stepType !== undefined || updates.parentStepId !== undefined;
+  if (!changingStructure) {
+    await stepsCol(parentItemId).doc(stepId).update(fields);
+    return getTutorialState();
+  }
+
+  const existing = await fetchStepMetas(parentItemId);
+  const currentIdx = existing.findIndex((s) => s.id === stepId);
+  if (currentIdx < 0) return getTutorialState();
+  const current = existing[currentIdx];
+
+  const nextStepType = updates.stepType ?? current.stepType;
+  const nextParentStepId = nextStepType === "sub" ? (updates.parentStepId ?? current.parentStepId) : null;
+
+  if (nextStepType === "sub") {
+    if (!nextParentStepId || nextParentStepId === stepId) {
+      throw new Error("A sub-step requires a different step as its parent.");
+    }
+    const parent = existing.find((s) => s.id === nextParentStepId);
+    if (!parent || parent.stepType !== "main") {
+      throw new Error("Sub-step parent must be an existing main step.");
+    }
+    const hasOwnSubSteps = existing.some((s) => s.stepType === "sub" && s.parentStepId === stepId);
+    if (hasOwnSubSteps) {
+      throw new Error("A step with its own sub-steps cannot become a sub-step.");
+    }
+  }
+
+  fields.stepType = nextStepType;
+  fields.parentStepId = nextParentStepId;
+
+  const withoutMoved = existing.filter((s) => s.id !== stepId);
+  const insertAt = nextStepType === "sub"
+    ? blockEndIndex(withoutMoved, nextParentStepId!)
+    : Math.min(currentIdx, withoutMoved.length);
+
+  const batch = db.batch();
+  withoutMoved.forEach((step, i) => {
+    const order = i < insertAt ? i : i + 1;
+    if (order !== step.order) batch.update(stepsCol(parentItemId).doc(step.id), { order });
+  });
+  batch.update(stepsCol(parentItemId).doc(stepId), { ...fields, order: insertAt });
+  await batch.commit();
+
   return getTutorialState();
 }
 
@@ -603,18 +687,30 @@ export async function deleteStep(
     ? await resolveDeleteLocation(lastLevel.id, parentItemId, parentName)
     : parentName;
 
-  await db.collection("deletedItems").doc().set({
-    originalId: stepId,
-    type: "step",
-    parentId: parentItemId,
-    name: (snap.data() as { title?: string }).title ?? "",
-    ...(location ? { location } : {}),
-    deletedAt: FieldValue.serverTimestamp(),
-    deletedBy: modifiedBy ?? "system",
-    data: snap.data() ?? {},
-  });
+  // Deleting a main step also removes its sub-steps, since they have no
+  // meaning without their parent. Each is soft-deleted independently, so
+  // they can be restored individually from the deleted-items bin.
+  const allSteps = await fetchStepMetas(parentItemId);
+  const subStepIds = allSteps.filter((s) => s.stepType === "sub" && s.parentStepId === stepId).map((s) => s.id);
+  const subSnaps = await Promise.all(subStepIds.map((id) => stepsCol(parentItemId).doc(id).get()));
 
-  await stepsCol(parentItemId).doc(stepId).delete();
+  const batch = db.batch();
+  for (const targetSnap of [snap, ...subSnaps]) {
+    if (!targetSnap.exists) continue;
+    batch.set(db.collection("deletedItems").doc(), {
+      originalId: targetSnap.id,
+      type: "step",
+      parentId: parentItemId,
+      name: (targetSnap.data() as { title?: string }).title ?? "",
+      ...(location ? { location } : {}),
+      deletedAt: FieldValue.serverTimestamp(),
+      deletedBy: modifiedBy ?? "system",
+      data: targetSnap.data() ?? {},
+    });
+    batch.delete(stepsCol(parentItemId).doc(targetSnap.id));
+  }
+  await batch.commit();
+
   return getTutorialState();
 }
 
@@ -642,26 +738,75 @@ export async function reorderStep(
   return getTutorialState();
 }
 
-export async function setStepOrder(
+// Reorders whole main-step blocks (a main step plus its contiguous
+// sub-steps) relative to other main-step blocks. `newBlockIndex` counts
+// main-step blocks only, not individual steps.
+export async function reorderMainStep(
   parentItemId: string,
   stepId: string,
-  newIndex: number,
+  newBlockIndex: number,
 ): Promise<TutorialState> {
-  const snap = await stepsCol(parentItemId).get();
-  const steps = snap.docs
-    .map((doc) => ({ id: doc.id, order: (doc.data().order as number) ?? 0 }))
-    .sort((a, b) => a.order - b.order);
+  const steps = await fetchStepMetas(parentItemId);
 
-  const currentIdx = steps.findIndex((s) => s.id === stepId);
-  if (currentIdx < 0) return getTutorialState();
+  const blocks: StepMeta[][] = [];
+  const blockIndexByMainId = new Map<string, number>();
+  for (const step of steps) {
+    if (step.stepType === "sub" && step.parentStepId && blockIndexByMainId.has(step.parentStepId)) {
+      blocks[blockIndexByMainId.get(step.parentStepId)!].push(step);
+    } else {
+      blockIndexByMainId.set(step.id, blocks.length);
+      blocks.push([step]);
+    }
+  }
 
-  const reordered = [...steps];
-  const [removed] = reordered.splice(currentIdx, 1);
-  reordered.splice(Math.max(0, Math.min(newIndex, reordered.length)), 0, removed);
+  const currentBlockIdx = blocks.findIndex((b) => b[0].id === stepId);
+  if (currentBlockIdx < 0) return getTutorialState();
+
+  const reorderedBlocks = [...blocks];
+  const [movedBlock] = reorderedBlocks.splice(currentBlockIdx, 1);
+  reorderedBlocks.splice(Math.max(0, Math.min(newBlockIndex, reorderedBlocks.length)), 0, movedBlock);
 
   const batch = db.batch();
-  reordered.forEach((step, i) => {
-    batch.update(stepsCol(parentItemId).doc(step.id), { order: i });
+  let order = 0;
+  for (const block of reorderedBlocks) {
+    for (const step of block) {
+      if (step.order !== order) batch.update(stepsCol(parentItemId).doc(step.id), { order });
+      order += 1;
+    }
+  }
+  await batch.commit();
+
+  return getTutorialState();
+}
+
+// Moves a sub-step to a specific position within a main step's sub-step
+// list, possibly re-parenting it to a different main step in the process.
+export async function reorderSubStep(
+  parentItemId: string,
+  stepId: string,
+  newParentStepId: string,
+  newIndexWithinParent: number,
+): Promise<TutorialState> {
+  const steps = await fetchStepMetas(parentItemId);
+
+  const moved = steps.find((s) => s.id === stepId);
+  const newParent = steps.find((s) => s.id === newParentStepId);
+  if (!moved || !newParent || newParent.stepType !== "main") return getTutorialState();
+
+  const withoutMoved = steps.filter((s) => s.id !== stepId);
+  const parentIdx = withoutMoved.findIndex((s) => s.id === newParentStepId);
+  const blockEnd = blockEndIndex(withoutMoved, newParentStepId);
+  const insertAt = Math.max(parentIdx + 1, Math.min(parentIdx + 1 + newIndexWithinParent, blockEnd));
+
+  const batch = db.batch();
+  withoutMoved.forEach((step, i) => {
+    const order = i < insertAt ? i : i + 1;
+    if (order !== step.order) batch.update(stepsCol(parentItemId).doc(step.id), { order });
+  });
+  batch.update(stepsCol(parentItemId).doc(stepId), {
+    order: insertAt,
+    stepType: "sub",
+    parentStepId: newParentStepId,
   });
   await batch.commit();
 

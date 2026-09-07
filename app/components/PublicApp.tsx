@@ -32,6 +32,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { trackEvent } from "./GoogleAnalytics";
 import Footer from "./Footer";
+import { groupSteps } from "../../lib/step-groups";
 import type { Item, Level, RelationshipEntry, Step, TutorialState } from "../../lib/tutorial-store";
 
 // ── Constants ─────────────────────────────────────────────────────────
@@ -356,7 +357,24 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
     return Object.fromEntries(rels.map((r) => [r.childItemId, r.published]));
   }, [state, currentLevel, selectionStack, parentLevel, parentEntry]);
 
-  const renderedStepCards = useMemo(() => currentSteps.map((step, index) => {
+  const stepGroups = useMemo(() => groupSteps(currentSteps), [currentSteps]);
+  const totalMainSteps = stepGroups.length;
+
+  // Flattens main/sub-step groups back into the render order, carrying the
+  // display label ("3" or "3.1") and which main step each entry belongs to
+  // (used to keep the "STEP X OF Y" counter to main steps only).
+  const flatStepEntries = useMemo(() => {
+    const entries: { step: Step; label: string; isMain: boolean; mainStepNumber: number }[] = [];
+    stepGroups.forEach((group, mainIdx) => {
+      entries.push({ step: group.main, label: `${mainIdx + 1}`, isMain: true, mainStepNumber: mainIdx + 1 });
+      group.subSteps.forEach((sub, subIdx) => {
+        entries.push({ step: sub, label: `${mainIdx + 1}.${subIdx + 1}`, isMain: false, mainStepNumber: mainIdx + 1 });
+      });
+    });
+    return entries;
+  }, [stepGroups]);
+
+  const renderedStepCards = useMemo(() => flatStepEntries.map(({ step, label, isMain }, index) => {
     const embedUrl = step.videoUrl ? getVideoEmbedUrl(step.videoUrl) : null;
     const isDirectVideo = /\.(mp4|webm|ogg)(\?.*)?$/i.test(step.videoUrl ?? "");
     const contentIncludesImage = step.imageUrl ? step.contentHtml.includes(step.imageUrl) : false;
@@ -371,25 +389,37 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
         sx={{
           borderRadius: "8px", border: "none", backgroundColor: colors.cardBg, boxShadow: colors.cardShadow, overflow: "hidden",
           scrollMarginTop: { xs: 90, sm: 110, md: 120 },
+          ...(isMain ? {} : {
+            ml: { xs: 2, sm: 5 },
+            borderLeft: `3px solid ${colors.lightBorder}`,
+            boxShadow: "none",
+            border: `1px solid ${colors.lightBorder}`,
+          }),
           "@media print": { breakInside: "avoid", boxShadow: "none", border: `1px solid ${colors.lightBorder}` },
         }}
       >
-        <CardContent sx={{ p: { xs: 2.5, sm: 3.5 } }}>
+        <CardContent sx={{ p: isMain ? { xs: 2.5, sm: 3.5 } : { xs: 2, sm: 2.5 } }}>
           <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: { xs: 2, sm: 2.5 } }}>
             <Box
               sx={{
                 display: "inline-flex", alignItems: "center", justifyContent: "center",
-                width: 40, height: 40, bgcolor: colors.stepNumberBg, color: "#FFFFFF",
-                fontWeight: 700, borderRadius: 1, fontSize: "1.1rem", flexShrink: 0,
+                width: isMain ? 40 : 32, height: isMain ? 40 : 32,
+                bgcolor: isMain ? colors.stepNumberBg : colors.lightBg, color: isMain ? "#FFFFFF" : colors.text,
+                border: isMain ? "none" : `1px solid ${colors.lightBorder}`,
+                fontWeight: 700, borderRadius: 1, fontSize: isMain ? "1.1rem" : "0.9rem", flexShrink: 0,
                 WebkitPrintColorAdjust: "exact", printColorAdjust: "exact",
               }}
             >
-              {index + 1}
+              {label}
             </Box>
             {step.title && (
               <Typography
-                variant="h2"
-                sx={{ fontSize: { xs: "1.25rem", sm: "1.5rem", md: "1.75rem" }, fontWeight: 800, letterSpacing: "-0.01em", color: colors.primary }}
+                variant={isMain ? "h2" : "h3"}
+                sx={
+                  isMain
+                    ? { fontSize: { xs: "1.25rem", sm: "1.5rem", md: "1.75rem" }, fontWeight: 800, letterSpacing: "-0.01em", color: colors.primary }
+                    : { fontSize: { xs: "1.05rem", sm: "1.2rem" }, fontWeight: 700, letterSpacing: "-0.01em", color: colors.primary }
+                }
               >
                 {step.title}
               </Typography>
@@ -508,7 +538,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
         </CardContent>
       </Card>
     );
-  }), [currentSteps]);
+  }), [flatStepEntries]);
 
   // ── Path builder (uses state closure) ────────────────────────────────
 
@@ -1213,7 +1243,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                     "@media print": { display: "none" },
                   }}
                 >
-                  STEP {currentSteps.length === 0 ? 0 : activeStepIndex + 1} OF {currentSteps.length}
+                  STEP {totalMainSteps === 0 ? 0 : (flatStepEntries[activeStepIndex]?.mainStepNumber ?? 1)} OF {totalMainSteps}
                 </Typography>
                 <Tooltip title={isPreparingPrint ? "Preparing to print…" : "Print"} arrow placement="top">
                   <span style={{ position: "absolute", right: "5px", top: "50%", transform: "translateY(-50%)" }}>
