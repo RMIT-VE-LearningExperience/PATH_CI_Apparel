@@ -14,8 +14,6 @@ import {
   Select,
   Stack,
   TextField,
-  ToggleButton,
-  ToggleButtonGroup,
   Typography,
 } from "@mui/material";
 import { Add as AddIcon, Crop as CropIcon } from "@mui/icons-material";
@@ -35,10 +33,12 @@ function getVideoEmbedUrl(url: string): string | null {
   return null;
 }
 
+type GalleryImage = { dataUrl: string; original: string };
+
 type SaveData = {
   title: string;
   contentHtml: string;
-  imageDataUrl: string;
+  imageDataUrls: string[];
   videoUrl: string;
   stepType: "main" | "sub";
   parentStepId: string | null;
@@ -60,7 +60,7 @@ type Props = {
   initialData?: {
     title?: string;
     contentHtml?: string;
-    imageUrl?: string;
+    imageUrls?: string[];
     videoUrl?: string;
   };
 };
@@ -80,16 +80,14 @@ export default function AddEditStepDialog({
 }: Props) {
   const [title, setTitle] = useState("");
   const [contentHtml, setContentHtml] = useState("");
-  const [imageDataUrl, setImageDataUrl] = useState("");
+  const [images, setImages] = useState<GalleryImage[]>([]);
   const [videoUrl, setVideoUrl] = useState("");
   const [imageError, setImageError] = useState("");
   const [compressed, setCompressed] = useState(false);
-  const [cropOpen, setCropOpen] = useState(false);
+  const [cropIndex, setCropIndex] = useState<number | null>(null);
   const [stepType, setStepType] = useState<"main" | "sub">("main");
   const [parentStepId, setParentStepId] = useState<string | null>(null);
-  const [mediaType, setMediaType] = useState<"image" | "video" | "none">("none");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const originalImageRef = useRef("");
   const prevOpenRef = useRef(false);
 
   // Available parents exclude the step itself (a step can't be its own parent).
@@ -104,23 +102,14 @@ export default function AddEditStepDialog({
     prevOpenRef.current = true;
     setTitle(initialData?.title ?? "");
     setContentHtml(initialData?.contentHtml ?? "");
-    setImageDataUrl(initialData?.imageUrl ?? "");
-    originalImageRef.current = initialData?.imageUrl ?? "";
+    setImages((initialData?.imageUrls ?? []).map((url) => ({ dataUrl: url, original: url })));
     setVideoUrl(initialData?.videoUrl ?? "");
     setImageError("");
     setCompressed(false);
-    setCropOpen(false);
+    setCropIndex(null);
     setStepType(initialStepType);
     setParentStepId(initialParentStepId ?? null);
-    setMediaType(initialData?.videoUrl ? "video" : initialData?.imageUrl ? "image" : "none");
   }, [open, initialData, initialStepType, initialParentStepId]);
-
-  function handleMediaTypeChange(next: "image" | "video" | "none" | null) {
-    if (!next) return;
-    setMediaType(next);
-    if (next !== "video") setVideoUrl("");
-    if (next !== "image") clearImage();
-  }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -129,16 +118,13 @@ export default function AddEditStepDialog({
     if (err) { setImageError(err); return; }
     setImageError("");
     const { dataUrl, compressed: wasCompressed } = await processUpload(file);
-    setImageDataUrl(dataUrl);
-    originalImageRef.current = dataUrl;
-    setCompressed(wasCompressed);
+    setImages((prev) => [...prev, { dataUrl, original: dataUrl }]);
+    if (wasCompressed) setCompressed(true);
     e.target.value = "";
   }
 
-  function clearImage() {
-    setImageDataUrl("");
-    originalImageRef.current = "";
-    setCompressed(false);
+  function removeImage(index: number) {
+    setImages((prev) => prev.filter((_, i) => i !== index));
   }
 
   function handleSave() {
@@ -147,7 +133,7 @@ export default function AddEditStepDialog({
     onSave({
       title: title.trim(),
       contentHtml,
-      imageDataUrl,
+      imageDataUrls: images.map((img) => img.dataUrl),
       videoUrl: videoUrl.trim(),
       stepType,
       parentStepId: stepType === "sub" ? parentStepId : null,
@@ -213,93 +199,74 @@ export default function AddEditStepDialog({
 
             <RichTextEditor label="Content" value={contentHtml} onChange={setContentHtml} />
 
-            {/* Media section: a step carries at most one of image or video */}
+            {/* Media section: any number of images, plus an optional video */}
             <Box>
-              <Typography variant="body2" fontWeight={500} sx={{ mb: 1 }}>Media</Typography>
-              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>Optional &mdash; image or video, not both</Typography>
-              <ToggleButtonGroup
-                exclusive
-                size="small"
-                value={mediaType}
-                onChange={(_e, next) => handleMediaTypeChange(next)}
-                sx={{ mb: 2 }}
-              >
-                <ToggleButton value="none" sx={{ textTransform: "none" }}>None</ToggleButton>
-                <ToggleButton value="image" sx={{ textTransform: "none" }}>Image</ToggleButton>
-                <ToggleButton value="video" sx={{ textTransform: "none" }}>Video</ToggleButton>
-              </ToggleButtonGroup>
+              <Typography variant="body2" fontWeight={500} sx={{ mb: 1 }}>Images</Typography>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>Optional &mdash; add as many as this step needs</Typography>
 
-              {mediaType === "image" && (
-              <Box>
-                {!imageDataUrl && (
-                  <Stack direction="row" alignItems="center" spacing={1.5}>
-                    <IconButton onClick={() => fileInputRef.current?.click()} sx={UPLOAD_BTN_SX}>
-                      <AddIcon />
-                    </IconButton>
-                    <Typography variant="caption" color="text.secondary">
-                      JPEG, PNG, or GIF · max 700 KB
-                    </Typography>
-                  </Stack>
-                )}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/gif"
-                  style={{ display: "none" }}
-                  onChange={(e) => void handleFileChange(e)}
-                />
-
-                {imageError && (
-                  <Typography variant="caption" color="error" display="block" sx={{ mt: 0.5 }}>
-                    {imageError}
-                  </Typography>
-                )}
-                {compressed && (
-                  <Typography variant="caption" display="block" sx={{ mt: 0.5, color: "#f59e0b" }}>
-                    Image was compressed to meet the 700 KB limit.
-                  </Typography>
-                )}
-
-                {imageDataUrl && (
-                  <Box sx={{ mt: 2, display: "flex", gap: 2, alignItems: "flex-start" }}>
-                    <Box sx={{ position: "relative", display: "inline-block" }}>
-                      <Box
-                        component="img"
-                        src={imageDataUrl}
-                        alt="Step image preview"
-                        sx={{
-                          width: 220, maxWidth: "100%", aspectRatio: "4/3",
-                          objectFit: "cover", borderRadius: 1,
-                          border: "1px solid", borderColor: "divider",
-                          display: "block",
-                        }}
-                      />
+              <Stack direction="row" flexWrap="wrap" gap={2} sx={{ mb: 1.5 }}>
+                {images.map((img, index) => (
+                  <Box key={index} sx={{ position: "relative", display: "inline-block" }}>
+                    <Box
+                      component="img"
+                      src={img.dataUrl}
+                      alt={`Step image ${index + 1} preview`}
+                      sx={{
+                        width: 160, maxWidth: "100%", aspectRatio: "4/3",
+                        objectFit: "cover", borderRadius: 1,
+                        border: "1px solid", borderColor: "divider",
+                        display: "block",
+                      }}
+                    />
+                    <Stack direction="row" spacing={0.5} sx={{ position: "absolute", top: 4, right: 4 }}>
                       <IconButton
                         size="small"
-                        onClick={clearImage}
-                        sx={{ position: "absolute", top: 0, right: 0, bgcolor: "rgba(255,255,255,0.9)", "&:hover": { bgcolor: "#fff" } }}
+                        onClick={() => setCropIndex(index)}
+                        sx={{ bgcolor: "rgba(255,255,255,0.9)", "&:hover": { bgcolor: "#fff" } }}
+                      >
+                        <CropIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        onClick={() => removeImage(index)}
+                        sx={{ bgcolor: "rgba(255,255,255,0.9)", "&:hover": { bgcolor: "#fff" } }}
                       >
                         ✕
                       </IconButton>
-                    </Box>
-                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1, mt: 1 }}>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        startIcon={<CropIcon />}
-                        onClick={() => setCropOpen(true)}
-                        sx={{ color: "#000054", borderColor: "#000054", textTransform: "none", fontWeight: 600 }}
-                      >
-                        Crop
-                      </Button>
-                    </Box>
+                    </Stack>
                   </Box>
-                )}
-              </Box>
+                ))}
+              </Stack>
+
+              <Stack direction="row" alignItems="center" spacing={1.5}>
+                <IconButton onClick={() => fileInputRef.current?.click()} sx={UPLOAD_BTN_SX}>
+                  <AddIcon />
+                </IconButton>
+                <Typography variant="caption" color="text.secondary">
+                  JPEG, PNG, or GIF · max 700 KB each
+                </Typography>
+              </Stack>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/gif"
+                style={{ display: "none" }}
+                onChange={(e) => void handleFileChange(e)}
+              />
+
+              {imageError && (
+                <Typography variant="caption" color="error" display="block" sx={{ mt: 0.5 }}>
+                  {imageError}
+                </Typography>
+              )}
+              {compressed && (
+                <Typography variant="caption" display="block" sx={{ mt: 0.5, color: "#f59e0b" }}>
+                  An image was compressed to meet the 700 KB limit.
+                </Typography>
               )}
 
-              {mediaType === "video" && (
-              <Stack spacing={1.5}>
+              <Stack spacing={1.5} sx={{ mt: 3 }}>
+                <Typography variant="body2" fontWeight={500}>Video</Typography>
                 <TextField
                   label="Video URL"
                   placeholder="YouTube, Vimeo, or direct .mp4 link"
@@ -333,7 +300,6 @@ export default function AddEditStepDialog({
                   </Box>
                 )}
               </Stack>
-              )}
             </Box>
           </Stack>
         </DialogContent>
@@ -355,11 +321,14 @@ export default function AddEditStepDialog({
       </Dialog>
 
       <ImageCropDialog
-        open={cropOpen}
-        onClose={() => setCropOpen(false)}
-        imageDataUrl={imageDataUrl}
-        originalDataUrl={originalImageRef.current}
-        onApply={(cropped) => setImageDataUrl(cropped)}
+        open={cropIndex !== null}
+        onClose={() => setCropIndex(null)}
+        imageDataUrl={cropIndex !== null ? images[cropIndex]?.dataUrl ?? "" : ""}
+        originalDataUrl={cropIndex !== null ? images[cropIndex]?.original ?? "" : ""}
+        onApply={(cropped) => {
+          if (cropIndex === null) return;
+          setImages((prev) => prev.map((img, i) => (i === cropIndex ? { ...img, dataUrl: cropped } : img)));
+        }}
       />
     </>
   );

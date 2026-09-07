@@ -377,7 +377,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
   const renderedStepCards = useMemo(() => flatStepEntries.map(({ step, label, isMain }, index) => {
     const embedUrl = step.videoUrl ? getVideoEmbedUrl(step.videoUrl) : null;
     const isDirectVideo = /\.(mp4|webm|ogg)(\?.*)?$/i.test(step.videoUrl ?? "");
-    const contentIncludesImage = step.imageUrl ? step.contentHtml.includes(step.imageUrl) : false;
+    const galleryImageUrls = step.imageUrls.filter((url) => !step.contentHtml.includes(url));
     const sanitizedContentHtml = step.contentHtml ? addPrintVideoNotes(sanitizeHtml(step.contentHtml)) : "";
 
     return (
@@ -474,24 +474,33 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
             />
           )}
 
-          {step.imageUrl && !contentIncludesImage && (
+          {galleryImageUrls.length > 0 && (
             <Box
-              onClick={() => { setEnlargedImage(step.imageUrl); setImgZoom(1); }}
               sx={{
-                position: "relative", width: "100%", paddingBottom: "60%",
-                overflow: "hidden", borderRadius: 1, bgcolor: colors.lightBg,
-                cursor: "pointer", transition: "all 0.2s ease",
-                mb: embedUrl ? { xs: 2, sm: 3 } : 0,
-                "&:hover": { boxShadow: colors.cardShadowHover },
+                display: "grid", gap: 2, mb: embedUrl ? { xs: 2, sm: 3 } : 0,
+                gridTemplateColumns: galleryImageUrls.length > 1 ? { xs: "1fr", sm: "repeat(auto-fit, minmax(240px, 1fr))" } : "1fr",
               }}
             >
-              <Image
-                src={step.imageUrl}
-                alt={step.title}
-                fill
-                style={{ objectFit: "contain" }}
-                sizes="(max-width: 600px) 100vw, (max-width: 960px) 90vw, 800px"
-              />
+              {galleryImageUrls.map((url, i) => (
+                <Box
+                  key={url}
+                  onClick={() => { setEnlargedImage(url); setImgZoom(1); }}
+                  sx={{
+                    position: "relative", width: "100%", paddingBottom: "60%",
+                    overflow: "hidden", borderRadius: 1, bgcolor: colors.lightBg,
+                    cursor: "pointer", transition: "all 0.2s ease",
+                    "&:hover": { boxShadow: colors.cardShadowHover },
+                  }}
+                >
+                  <Image
+                    src={url}
+                    alt={galleryImageUrls.length > 1 ? `${step.title} — image ${i + 1}` : step.title}
+                    fill
+                    style={{ objectFit: "contain" }}
+                    sizes="(max-width: 600px) 100vw, (max-width: 960px) 90vw, 800px"
+                  />
+                </Box>
+              ))}
             </Box>
           )}
 

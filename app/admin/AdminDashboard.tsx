@@ -603,7 +603,7 @@ export default function AdminDashboard() {
   // ── Step CRUD ─────────────────────────────────────────────────────────
 
   async function handleSaveStep(data: {
-    title: string; contentHtml: string; imageDataUrl: string; videoUrl: string;
+    title: string; contentHtml: string; imageDataUrls: string[]; videoUrl: string;
     stepType: "main" | "sub"; parentStepId: string | null;
   }) {
     if (!stepDialog) return;
@@ -611,14 +611,14 @@ export default function AdminDashboard() {
     if (mode === "edit" && step) {
       const ns = await dispatch("updateStep", {
         parentItemId, stepId: step.id, title: data.title,
-        contentHtml: data.contentHtml, imageDataUrl: data.imageDataUrl, videoUrl: data.videoUrl,
+        contentHtml: data.contentHtml, imageDataUrls: data.imageDataUrls, videoUrl: data.videoUrl,
         stepType: data.stepType, parentStepId: data.parentStepId,
       });
       if (ns) { setStepDialog(null); showAlert("Saved"); }
     } else {
       const ns = await dispatch("addStep", {
         parentItemId, title: data.title,
-        contentHtml: data.contentHtml, imageDataUrl: data.imageDataUrl, videoUrl: data.videoUrl,
+        contentHtml: data.contentHtml, imageDataUrls: data.imageDataUrls, videoUrl: data.videoUrl,
         stepType: data.stepType, parentStepId: data.parentStepId,
       });
       if (ns) { setStepDialog(null); showAlert("Step added"); }
@@ -1007,13 +1007,18 @@ export default function AdminDashboard() {
                       dangerouslySetInnerHTML={{ __html: step.contentHtml }}
                     />
                   )}
-                  {step.imageUrl && (
-                    <Box
-                      component="img"
-                      src={step.imageUrl}
-                      alt="Step image"
-                      sx={{ width: "100%", maxWidth: 400, maxHeight: 300, objectFit: "cover", borderRadius: 1, mt: 1 }}
-                    />
+                  {step.imageUrls.length > 0 && (
+                    <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mt: 1 }}>
+                      {step.imageUrls.map((url, i) => (
+                        <Box
+                          key={i}
+                          component="img"
+                          src={url}
+                          alt={`Step image ${i + 1}`}
+                          sx={{ width: 200, maxWidth: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 1 }}
+                        />
+                      ))}
+                    </Stack>
                   )}
                   {step.videoUrl && getVideoEmbedUrl(step.videoUrl) && (
                     <Box sx={{ mt: 1 }}>
@@ -1677,7 +1682,7 @@ export default function AdminDashboard() {
         mainSteps={stepDialogMainOptions}
         initialData={
           stepDialog?.step
-            ? { title: stepDialog.step.title, contentHtml: stepDialog.step.contentHtml, imageUrl: stepDialog.step.imageUrl, videoUrl: stepDialog.step.videoUrl }
+            ? { title: stepDialog.step.title, contentHtml: stepDialog.step.contentHtml, imageUrls: stepDialog.step.imageUrls, videoUrl: stepDialog.step.videoUrl }
             : undefined
         }
       />

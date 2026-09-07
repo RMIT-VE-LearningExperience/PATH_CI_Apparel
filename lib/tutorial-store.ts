@@ -52,7 +52,7 @@ export type Step = {
   id: string;
   title: string;
   contentHtml: string;
-  imageUrl: string;
+  imageUrls: string[];
   videoUrl?: string;
   stepType: "main" | "sub";
   parentStepId: string | null;
@@ -331,12 +331,20 @@ export async function getTutorialState(publishedOnly = false): Promise<TutorialS
       (items[lastLevel.id] ?? []).map(async (item) => {
         const snap = await stepsCol(item.id).get();
         steps[item.id] = snap.docs
-          .map((doc) => ({
-            ...(doc.data() as Omit<Step, "id" | "createdAt" | "lastModified">),
-            id: doc.id,
-            createdAt: toDate(doc.data().createdAt),
-            lastModified: toDate(doc.data().lastModified),
-          }))
+          .map((doc) => {
+            const data = doc.data();
+            // Back-compat: pre-gallery steps stored a single `imageUrl` string.
+            const imageUrls = Array.isArray(data.imageUrls)
+              ? data.imageUrls
+              : (data.imageUrl ? [data.imageUrl] : []);
+            return {
+              ...(data as Omit<Step, "id" | "createdAt" | "lastModified" | "imageUrls">),
+              imageUrls,
+              id: doc.id,
+              createdAt: toDate(data.createdAt),
+              lastModified: toDate(data.lastModified),
+            };
+          })
           .sort((a, b) => a.order - b.order);
       }),
     );
@@ -558,7 +566,7 @@ export async function addStep(
   parentItemId: string,
   title: string,
   contentHtml: string,
-  imageDataUrl: string,
+  imageDataUrls: string[],
   videoUrl: string | undefined,
   stepType: "main" | "sub",
   parentStepId: string | null,
@@ -569,7 +577,11 @@ export async function addStep(
   const insertAt = isSub ? blockEndIndex(existing, parentStepId!) : existing.length;
 
   const ref = stepsCol(parentItemId).doc();
-  const imageUrl = await resolveImageUrl(imageDataUrl, `steps/${parentItemId}/${ref.id}/image`);
+  const imageUrls = (
+    await Promise.all(
+      imageDataUrls.map((dataUrl, i) => resolveImageUrl(dataUrl, `steps/${parentItemId}/${ref.id}/image-${i}`)),
+    )
+  ).filter(Boolean);
 
   const batch = db.batch();
   existing.slice(insertAt).forEach((step, i) => {
@@ -578,7 +590,7 @@ export async function addStep(
   batch.set(ref, {
     title,
     contentHtml,
-    imageUrl,
+    imageUrls,
     videoUrl: videoUrl ?? "",
     stepType: isSub ? "sub" : "main",
     parentStepId: isSub ? parentStepId : null,
@@ -598,7 +610,7 @@ export async function updateStep(
   updates: {
     title?: string;
     contentHtml?: string;
-    imageDataUrl?: string;
+    imageDataUrls?: string[];
     videoUrl?: string;
     stepType?: "main" | "sub";
     parentStepId?: string | null;
@@ -613,11 +625,12 @@ export async function updateStep(
   if (updates.title !== undefined) fields.title = updates.title;
   if (updates.contentHtml !== undefined) fields.contentHtml = updates.contentHtml;
   if (updates.videoUrl !== undefined) fields.videoUrl = updates.videoUrl;
-  if (updates.imageDataUrl !== undefined) {
-    fields.imageUrl = await resolveImageUrl(
-      updates.imageDataUrl,
-      `steps/${parentItemId}/${stepId}/image`,
-    );
+  if (updates.imageDataUrls !== undefined) {
+    fields.imageUrls = (
+      await Promise.all(
+        updates.imageDataUrls.map((dataUrl, i) => resolveImageUrl(dataUrl, `steps/${parentItemId}/${stepId}/image-${i}`)),
+      )
+    ).filter(Boolean);
   }
 
   const changingStructure = updates.stepType !== undefined || updates.parentStepId !== undefined;
