@@ -60,6 +60,7 @@ function getVideoEmbedUrl(url: string): string | null {
   const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
   if (vimeoMatch) return `https://player.vimeo.com/video/${vimeoMatch[1]}`;
   if (/\.(mp4|webm|ogg)(\?.*)?$/i.test(url)) return url;
+  if (/instructuremedia\.com\/embed\//i.test(url)) return url;
   return null;
 }
 
