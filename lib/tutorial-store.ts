@@ -633,12 +633,6 @@ export async function updateStep(
     ).filter(Boolean);
   }
 
-  const changingStructure = updates.stepType !== undefined || updates.parentStepId !== undefined;
-  if (!changingStructure) {
-    await stepsCol(parentItemId).doc(stepId).update(fields);
-    return getTutorialState();
-  }
-
   const existing = await fetchStepMetas(parentItemId);
   const currentIdx = existing.findIndex((s) => s.id === stepId);
   if (currentIdx < 0) return getTutorialState();
@@ -646,6 +640,15 @@ export async function updateStep(
 
   const nextStepType = updates.stepType ?? current.stepType;
   const nextParentStepId = nextStepType === "sub" ? (updates.parentStepId ?? current.parentStepId) : null;
+
+  // The dialog always sends stepType/parentStepId, even when unediting them —
+  // only reposition when they actually differ from the stored values, or
+  // every plain content edit would bump the step to the end of its block.
+  const changingStructure = nextStepType !== current.stepType || nextParentStepId !== current.parentStepId;
+  if (!changingStructure) {
+    await stepsCol(parentItemId).doc(stepId).update(fields);
+    return getTutorialState();
+  }
 
   if (nextStepType === "sub") {
     if (!nextParentStepId || nextParentStepId === stepId) {
