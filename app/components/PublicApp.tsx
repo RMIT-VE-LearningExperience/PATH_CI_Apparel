@@ -395,7 +395,6 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
           // instead of a separate floating card.
           mt: index === 0 ? 0 : isMain ? { xs: 3, sm: 4 } : 0.5,
           ...(isMain ? {} : {
-            ml: { xs: 2, sm: 5 },
             borderLeft: `3px solid ${colors.lightBorder}`,
             boxShadow: "none",
           }),
