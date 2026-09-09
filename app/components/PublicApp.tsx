@@ -541,6 +541,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                     <Box
                       component="iframe"
                       src={embedUrl}
+                      title={`Video for step: ${step.title || "untitled"}`}
                       loading="eager"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                       allowFullScreen
