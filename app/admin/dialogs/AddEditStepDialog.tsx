@@ -16,7 +16,8 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { Add as AddIcon, Crop as CropIcon } from "@mui/icons-material";
+import { Add as AddIcon, Crop as CropIcon, DragIndicator as DragIndicatorIcon } from "@mui/icons-material";
+import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import { useEffect, useRef, useState } from "react";
 import RichTextEditor from "../RichTextEditor";
 import { validateImageFile, processUpload } from "../utils/imageUpload";
@@ -34,7 +35,7 @@ function getVideoEmbedUrl(url: string): string | null {
   return null;
 }
 
-type GalleryImage = { dataUrl: string; original: string };
+type GalleryImage = { id: string; dataUrl: string; original: string };
 
 type SaveData = {
   title: string;
@@ -103,7 +104,7 @@ export default function AddEditStepDialog({
     prevOpenRef.current = true;
     setTitle(initialData?.title ?? "");
     setContentHtml(initialData?.contentHtml ?? "");
-    setImages((initialData?.imageUrls ?? []).map((url) => ({ dataUrl: url, original: url })));
+    setImages((initialData?.imageUrls ?? []).map((url) => ({ id: crypto.randomUUID(), dataUrl: url, original: url })));
     setVideoUrl(initialData?.videoUrl ?? "");
     setImageError("");
     setCompressed(false);
@@ -119,13 +120,23 @@ export default function AddEditStepDialog({
     if (err) { setImageError(err); return; }
     setImageError("");
     const { dataUrl, compressed: wasCompressed } = await processUpload(file);
-    setImages((prev) => [...prev, { dataUrl, original: dataUrl }]);
+    setImages((prev) => [...prev, { id: crypto.randomUUID(), dataUrl, original: dataUrl }]);
     if (wasCompressed) setCompressed(true);
     e.target.value = "";
   }
 
   function removeImage(index: number) {
     setImages((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function handleImageDragEnd(result: DropResult) {
+    if (!result.destination) return;
+    setImages((prev) => {
+      const next = Array.from(prev);
+      const [moved] = next.splice(result.source.index, 1);
+      next.splice(result.destination!.index, 0, moved);
+      return next;
+    });
   }
 
   function handleSave() {
@@ -203,41 +214,80 @@ export default function AddEditStepDialog({
             {/* Media section: any number of images, plus an optional video */}
             <Box>
               <Typography variant="body2" fontWeight={500} sx={{ mb: 1 }}>Images</Typography>
-              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>Optional &mdash; add as many as this step needs</Typography>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>Optional &mdash; add as many as this step needs, drag to reorder</Typography>
 
-              <Stack direction="row" flexWrap="wrap" gap={2} sx={{ mb: 1.5 }}>
-                {images.map((img, index) => (
-                  <Box key={index} sx={{ position: "relative", display: "inline-block" }}>
-                    <Box
-                      component="img"
-                      src={img.dataUrl}
-                      alt={`Step image ${index + 1} preview`}
-                      sx={{
-                        width: 160, maxWidth: "100%", aspectRatio: "4/3",
-                        objectFit: "cover", borderRadius: 1,
-                        border: "1px solid", borderColor: "divider",
-                        display: "block",
-                      }}
-                    />
-                    <Stack direction="row" spacing={0.5} sx={{ position: "absolute", top: 4, right: 4 }}>
-                      <IconButton
-                        size="small"
-                        onClick={() => setCropIndex(index)}
-                        sx={{ bgcolor: "rgba(255,255,255,0.9)", "&:hover": { bgcolor: "#fff" } }}
-                      >
-                        <CropIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={() => removeImage(index)}
-                        sx={{ bgcolor: "rgba(255,255,255,0.9)", "&:hover": { bgcolor: "#fff" } }}
-                      >
-                        ✕
-                      </IconButton>
+              <DragDropContext onDragEnd={handleImageDragEnd}>
+                <Droppable droppableId="step-images" direction="horizontal">
+                  {(droppableProvided) => (
+                    <Stack
+                      ref={droppableProvided.innerRef}
+                      {...droppableProvided.droppableProps}
+                      direction="row"
+                      flexWrap="wrap"
+                      gap={2}
+                      sx={{ mb: 1.5 }}
+                    >
+                      {images.map((img, index) => (
+                        <Draggable key={img.id} draggableId={img.id} index={index}>
+                          {(dragProvided, snapshot) => (
+                            <Box
+                              ref={dragProvided.innerRef}
+                              {...dragProvided.draggableProps}
+                              sx={{
+                                position: "relative", display: "inline-block",
+                                boxShadow: snapshot.isDragging ? "0 8px 24px rgba(0,0,0,0.2)" : "none",
+                                borderRadius: 1,
+                              }}
+                            >
+                              <Box
+                                component="img"
+                                src={img.dataUrl}
+                                alt={`Step image ${index + 1} preview`}
+                                sx={{
+                                  width: 160, maxWidth: "100%", aspectRatio: "4/3",
+                                  objectFit: "cover", borderRadius: 1,
+                                  border: "1px solid", borderColor: "divider",
+                                  display: "block",
+                                }}
+                              />
+                              <Box
+                                {...dragProvided.dragHandleProps}
+                                sx={{
+                                  position: "absolute", top: 4, left: 4,
+                                  display: "flex", alignItems: "center", justifyContent: "center",
+                                  width: 28, height: 28, borderRadius: 1,
+                                  bgcolor: "rgba(255,255,255,0.9)", cursor: "grab",
+                                  color: "text.secondary",
+                                  "&:hover": { bgcolor: "#fff" },
+                                }}
+                              >
+                                <DragIndicatorIcon fontSize="small" />
+                              </Box>
+                              <Stack direction="row" spacing={0.5} sx={{ position: "absolute", top: 4, right: 4 }}>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => setCropIndex(index)}
+                                  sx={{ bgcolor: "rgba(255,255,255,0.9)", "&:hover": { bgcolor: "#fff" } }}
+                                >
+                                  <CropIcon fontSize="small" />
+                                </IconButton>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => removeImage(index)}
+                                  sx={{ bgcolor: "rgba(255,255,255,0.9)", "&:hover": { bgcolor: "#fff" } }}
+                                >
+                                  ✕
+                                </IconButton>
+                              </Stack>
+                            </Box>
+                          )}
+                        </Draggable>
+                      ))}
+                      {droppableProvided.placeholder}
                     </Stack>
-                  </Box>
-                ))}
-              </Stack>
+                  )}
+                </Droppable>
+              </DragDropContext>
 
               <Stack direction="row" alignItems="center" spacing={1.5}>
                 <IconButton onClick={() => fileInputRef.current?.click()} sx={UPLOAD_BTN_SX}>
