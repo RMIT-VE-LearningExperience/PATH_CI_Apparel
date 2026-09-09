@@ -302,7 +302,6 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
   const [isPreparingPrint, setIsPreparingPrint] = useState(false);
 
   const stepRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const stepVisibleHeightRef = useRef(new Map<number, number>());
   const lastTrackedStep = useRef(-1);
   const selectionStackRef = useRef<NavEntry[]>([]);
 
@@ -790,41 +789,65 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
     };
   }, []);
 
-  // ── Step intersection observer ────────────────────────────────────────
+  // ── Step scroll tracking ────────────────────────────────────────────────
+  // "Most visible area" (by ratio or by absolute pixels) inherently favors
+  // whichever card is taller — a short, near-empty main-step header can
+  // never outweigh a tall sub-step card that's still substantially on
+  // screen, in *either* scroll direction. That made the tracker snap back
+  // to a tall neighbor immediately after navigating to a short one, so the
+  // "next"/"previous" arrows (which target activeStepIndex ± 1) could get
+  // stuck recomputing the same anchor. Tracking is by position instead:
+  // the active step is the last one whose top has scrolled up to the
+  // reading line (matching each card's own scrollMarginTop) — the same
+  // approach as a standard scrollspy nav, which doesn't care about height.
 
   useEffect(() => {
     if (!atSteps || currentSteps.length === 0) return;
-    stepVisibleHeightRef.current.clear();
     lastTrackedStep.current = -1;
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          const idx = Number(entry.target.getAttribute("data-step-index"));
-          if (entry.isIntersecting) {
-            stepVisibleHeightRef.current.set(idx, entry.intersectionRect.height);
-          } else {
-            stepVisibleHeightRef.current.delete(idx);
-          }
-        });
+    let ticking = false;
 
-        // Pick whichever step occupies the most visible screen space right now
-        // (absolute pixels, not each card's own ratio) — a short, near-empty
-        // main-step header can hit a high *ratio* just by fitting entirely on
-        // screen, even while a much taller sub-step card below it is genuinely
-        // dominating the viewport. Comparing raw pixel height avoids that bias.
-        let bestIdx = -1;
-        let bestHeight = 0;
-        stepVisibleHeightRef.current.forEach((height, idx) => {
-          if (height > bestHeight) { bestHeight = height; bestIdx = idx; }
-        });
-        if (bestIdx >= 0) setActiveStepIndex(bestIdx);
-      },
-      { threshold: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1] },
-    );
+    function updateActiveStep() {
+      ticking = false;
+      const els = stepRefs.current;
 
-    stepRefs.current.forEach((el) => el && observer.observe(el));
-    return () => observer.disconnect();
+      // The last step (plus whatever's below it — footer, etc.) doesn't
+      // always add up to a full viewport's worth of scrollable height, so
+      // its top can never actually reach the reading line; the page simply
+      // runs out of room to scroll first. Treat "scrolled to the bottom" as
+      // "on the last step" rather than leaving the second-to-last one stuck.
+      const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
+      if (atBottom) {
+        setActiveStepIndex(els.length - 1);
+        return;
+      }
+
+      const firstEl = els.find((el) => el);
+      const readingLine = firstEl ? parseFloat(window.getComputedStyle(firstEl).scrollMarginTop) || 110 : 110;
+
+      let idx = 0;
+      for (let i = 0; i < els.length; i++) {
+        const el = els[i];
+        if (!el) continue;
+        if (el.getBoundingClientRect().top <= readingLine + 1) idx = i;
+        else break;
+      }
+      setActiveStepIndex(idx);
+    }
+
+    function onScroll() {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(updateActiveStep);
+    }
+
+    updateActiveStep();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
   }, [atSteps, currentSteps]);
 
   // ── GA step tracking ──────────────────────────────────────────────────
