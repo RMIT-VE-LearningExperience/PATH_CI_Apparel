@@ -193,15 +193,16 @@ export default function LoginPage() {
             setRegSuccess(false);
           }}
           variant="fullWidth"
+          aria-label="Admin access"
           sx={{ borderBottom: "1px solid #E5E1D7" }}
         >
-          <Tab label="Login" />
-          <Tab label="Request" />
+          <Tab label="Login" id="login-tab-0" aria-controls="login-tabpanel-0" />
+          <Tab label="Request" id="login-tab-1" aria-controls="login-tabpanel-1" />
         </Tabs>
 
         <Box sx={{ padding: 4 }}>
           {tab === 0 && (
-            <Stack spacing={2}>
+            <Stack spacing={2} role="tabpanel" id="login-tabpanel-0" aria-labelledby="login-tab-0">
               <Typography variant="h5" component="h1" fontWeight={700} textAlign="center">
                 Admin Login
               </Typography>
@@ -235,7 +236,7 @@ export default function LoginPage() {
           )}
 
           {tab === 1 && (
-            <Stack spacing={2}>
+            <Stack spacing={2} role="tabpanel" id="login-tabpanel-1" aria-labelledby="login-tab-1">
               <Typography variant="h5" component="h1" fontWeight={700} textAlign="center">
                 Request for Access
               </Typography>
