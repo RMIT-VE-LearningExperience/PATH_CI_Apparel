@@ -185,10 +185,11 @@ function addPrintVideoNotes(html: string): string {
 
 // ── Nav icon button ───────────────────────────────────────────────────
 
-function NavIconButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+function NavIconButton({ onClick, ariaLabel, children }: { onClick: () => void; ariaLabel: string; children: React.ReactNode }) {
   return (
     <IconButton
       onClick={onClick}
+      aria-label={ariaLabel}
       sx={{
         color: colors.text,
         border: `1px solid ${colors.lightBorder}`,
@@ -1289,7 +1290,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
         <Container maxWidth="md" component="main" id="main-content" ref={mainRef} tabIndex={-1} sx={mainFocusSx}>
           {!hideMenuEnabled && (
             <Stack direction="row" spacing={1.5} sx={{ mb: { xs: 4, sm: 5 }, alignItems: "center" }}>
-              <NavIconButton onClick={() => handleBack(selectionStack.length - 1)}>
+              <NavIconButton onClick={() => handleBack(selectionStack.length - 1)} ariaLabel="Back">
                 <ArrowBackIcon />
               </NavIconButton>
               <Stack spacing={0.25} sx={{ flex: 1, textAlign: "center" }}>
@@ -1302,7 +1303,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                   </Typography>
                 )}
               </Stack>
-              <NavIconButton onClick={() => handleBack(0)}>
+              <NavIconButton onClick={() => handleBack(0)} ariaLabel="Go to homepage">
                 <HomeIcon />
               </NavIconButton>
             </Stack>
@@ -1370,7 +1371,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
           <Container maxWidth="md" component="main" id="main-content" ref={mainRef} tabIndex={-1} sx={mainFocusSx}>
             {!hideMenuEnabled && (
               <Stack direction="row" spacing={1.5} sx={{ mb: { xs: 4, sm: 5 }, alignItems: "center" }}>
-                <NavIconButton onClick={() => handleBack(selectionStack.length - 1)}>
+                <NavIconButton onClick={() => handleBack(selectionStack.length - 1)} ariaLabel="Back">
                   <ArrowBackIcon />
                 </NavIconButton>
                 <Stack spacing={0.25} sx={{ flex: 1, textAlign: "center" }}>
@@ -1383,7 +1384,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                     </Typography>
                   )}
                 </Stack>
-                <NavIconButton onClick={() => handleBack(0)}>
+                <NavIconButton onClick={() => handleBack(0)} ariaLabel="Go to homepage">
                   <HomeIcon />
                 </NavIconButton>
               </Stack>
@@ -1409,7 +1410,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
           <Container maxWidth="md" component="main" id="main-content" ref={mainRef} tabIndex={-1} sx={mainFocusSx}>
             {!hideMenuEnabled && (
               <Stack direction="row" spacing={1.5} sx={{ mb: { xs: 4, sm: 5 }, alignItems: "center", "@media print": { display: "none" } }}>
-                <NavIconButton onClick={() => handleBack(selectionStack.length - 1)}>
+                <NavIconButton onClick={() => handleBack(selectionStack.length - 1)} ariaLabel="Back">
                   <ArrowBackIcon />
                 </NavIconButton>
                 <Stack spacing={0.25} sx={{ flex: 1, textAlign: "center" }}>
@@ -1422,7 +1423,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                     </Typography>
                   )}
                 </Stack>
-                <NavIconButton onClick={() => handleBack(0)}>
+                <NavIconButton onClick={() => handleBack(0)} ariaLabel="Go to homepage">
                   <HomeIcon />
                 </NavIconButton>
               </Stack>
