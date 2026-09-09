@@ -22,6 +22,7 @@ import {
   ArrowBack as ArrowBackIcon,
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
+  Close as CloseIcon,
   Home as HomeIcon,
   Image as ImageIcon,
   Info as InfoIcon,
@@ -365,7 +366,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
 
   const [selectionStack, setSelectionStack] = useState<NavEntry[]>([]);
   const [activeStepIndex, setActiveStepIndex] = useState(0);
-  const [enlargedGallery, setEnlargedGallery] = useState<{ urls: string[]; index: number } | null>(null);
+  const [enlargedGallery, setEnlargedGallery] = useState<{ items: { url: string; alt: string }[]; index: number } | null>(null);
   const [imgZoom, setImgZoom] = useState(1);
   const [hideMenuEnabled, setHideMenuEnabled] = useState(false);
   const [isPreparingPrint, setIsPreparingPrint] = useState(false);
@@ -529,9 +530,12 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                 if (target.tagName === "IMG") {
                   const src = (target as HTMLImageElement).src;
                   if (!src) return;
-                  const siblingImgs = Array.from(e.currentTarget.querySelectorAll("img")).map((img) => img.src);
-                  const index = Math.max(0, siblingImgs.indexOf(src));
-                  setEnlargedGallery({ urls: siblingImgs, index });
+                  const siblingImgs = Array.from(e.currentTarget.querySelectorAll("img")).map((img) => ({
+                    url: img.src,
+                    alt: img.alt || step.title || "Step image",
+                  }));
+                  const index = Math.max(0, siblingImgs.findIndex((img) => img.url === src));
+                  setEnlargedGallery({ items: siblingImgs, index });
                   setImgZoom(1);
                 }
               }}
@@ -584,7 +588,14 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
               {galleryImageUrls.map((url, i) => (
                 <Box
                   key={url}
-                  onClick={() => { setEnlargedGallery({ urls: galleryImageUrls, index: i }); setImgZoom(1); }}
+                  onClick={() => {
+                    const items = galleryImageUrls.map((u, j) => ({
+                      url: u,
+                      alt: galleryImageUrls.length > 1 ? `${step.title} — image ${j + 1}` : step.title,
+                    }));
+                    setEnlargedGallery({ items, index: i });
+                    setImgZoom(1);
+                  }}
                   sx={{
                     position: "relative", width: "100%", paddingBottom: "60%",
                     overflow: "hidden", borderRadius: 1, bgcolor: colors.lightBg,
@@ -945,7 +956,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
         setEnlargedGallery((g) => (g && g.index > 0 ? { ...g, index: g.index - 1 } : g));
         setImgZoom(1);
       } else if (e.key === "ArrowRight") {
-        setEnlargedGallery((g) => (g && g.index < g.urls.length - 1 ? { ...g, index: g.index + 1 } : g));
+        setEnlargedGallery((g) => (g && g.index < g.items.length - 1 ? { ...g, index: g.index + 1 } : g));
         setImgZoom(1);
       }
     }
@@ -1498,8 +1509,23 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
           onClose={() => { setEnlargedGallery(null); setImgZoom(1); }}
           sx={{ display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "rgba(0,0,0,0.85)" }}
         >
-          <Box sx={{ outline: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 1, position: "relative" }}>
-            {enlargedGallery && enlargedGallery.urls.length > 1 && enlargedGallery.index > 0 && (
+          <Box
+            role="dialog"
+            aria-modal="true"
+            aria-label={enlargedGallery ? enlargedGallery.items[enlargedGallery.index]?.alt || "Step image" : "Step image"}
+            sx={{ outline: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 1, position: "relative" }}
+          >
+            <IconButton
+              aria-label="Close"
+              onClick={() => { setEnlargedGallery(null); setImgZoom(1); }}
+              sx={{
+                position: "absolute", top: { xs: -44, sm: -16 }, right: { xs: 0, sm: -16 },
+                color: "white", bgcolor: "rgba(0,0,0,0.5)", "&:hover": { bgcolor: "rgba(0,0,0,0.7)" },
+              }}
+            >
+              <CloseIcon />
+            </IconButton>
+            {enlargedGallery && enlargedGallery.items.length > 1 && enlargedGallery.index > 0 && (
               <IconButton
                 aria-label="Previous image"
                 onClick={() => { setEnlargedGallery((g) => (g ? { ...g, index: g.index - 1 } : g)); setImgZoom(1); }}
@@ -1511,7 +1537,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                 <ChevronLeftIcon />
               </IconButton>
             )}
-            {enlargedGallery && enlargedGallery.urls.length > 1 && enlargedGallery.index < enlargedGallery.urls.length - 1 && (
+            {enlargedGallery && enlargedGallery.items.length > 1 && enlargedGallery.index < enlargedGallery.items.length - 1 && (
               <IconButton
                 aria-label="Next image"
                 onClick={() => { setEnlargedGallery((g) => (g ? { ...g, index: g.index + 1 } : g)); setImgZoom(1); }}
@@ -1527,26 +1553,26 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
               {enlargedGallery && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={enlargedGallery.urls[enlargedGallery.index]}
-                  alt="Step image"
+                  src={enlargedGallery.items[enlargedGallery.index].url}
+                  alt={enlargedGallery.items[enlargedGallery.index].alt}
                   style={{ display: "block", width: `${imgZoom * 100}%`, height: "auto", cursor: imgZoom > 1 ? "zoom-out" : "zoom-in" }}
                   onClick={() => setImgZoom((z) => (z > 1 ? 1 : 1.5))}
                 />
               )}
             </Box>
             <Stack direction="row" alignItems="center" spacing={1} sx={{ bgcolor: "rgba(0,0,0,0.6)", borderRadius: 2, px: 1.5, py: 0.5 }}>
-              <IconButton size="small" onClick={() => setImgZoom((z) => Math.max(1, z - 0.5))} disabled={imgZoom <= 1} sx={{ color: "white" }}>
+              <IconButton aria-label="Zoom out" size="small" onClick={() => setImgZoom((z) => Math.max(1, z - 0.5))} disabled={imgZoom <= 1} sx={{ color: "white" }}>
                 <RemoveIcon fontSize="small" />
               </IconButton>
               <Typography variant="caption" sx={{ color: "white", minWidth: 36, textAlign: "center" }}>
                 {Math.round(imgZoom * 100)}%
               </Typography>
-              <IconButton size="small" onClick={() => setImgZoom((z) => Math.min(1.5, z + 0.5))} disabled={imgZoom >= 1.5} sx={{ color: "white" }}>
+              <IconButton aria-label="Zoom in" size="small" onClick={() => setImgZoom((z) => Math.min(1.5, z + 0.5))} disabled={imgZoom >= 1.5} sx={{ color: "white" }}>
                 <AddIcon fontSize="small" />
               </IconButton>
-              {enlargedGallery && enlargedGallery.urls.length > 1 && (
+              {enlargedGallery && enlargedGallery.items.length > 1 && (
                 <Typography variant="caption" sx={{ color: "white", minWidth: 40, textAlign: "center", borderLeft: "1px solid rgba(255,255,255,0.3)", pl: 1, ml: 0.5 }}>
-                  {enlargedGallery.index + 1} / {enlargedGallery.urls.length}
+                  {enlargedGallery.index + 1} / {enlargedGallery.items.length}
                 </Typography>
               )}
             </Stack>
