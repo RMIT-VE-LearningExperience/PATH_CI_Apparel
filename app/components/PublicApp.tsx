@@ -366,17 +366,23 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
   // display label ("3" or "3.1") and which main step each entry belongs to
   // (used to keep the "STEP X OF Y" counter to main steps only).
   const flatStepEntries = useMemo(() => {
-    const entries: { step: Step; label: string; isMain: boolean; mainStepNumber: number }[] = [];
+    const entries: { step: Step; label: string; isMain: boolean; mainStepNumber: number; hasSubSteps: boolean; isLastSub: boolean }[] = [];
     stepGroups.forEach((group, mainIdx) => {
-      entries.push({ step: group.main, label: `${mainIdx + 1}`, isMain: true, mainStepNumber: mainIdx + 1 });
+      entries.push({
+        step: group.main, label: `${mainIdx + 1}`, isMain: true, mainStepNumber: mainIdx + 1,
+        hasSubSteps: group.subSteps.length > 0, isLastSub: false,
+      });
       group.subSteps.forEach((sub, subIdx) => {
-        entries.push({ step: sub, label: `${mainIdx + 1}.${subIdx + 1}`, isMain: false, mainStepNumber: mainIdx + 1 });
+        entries.push({
+          step: sub, label: `${mainIdx + 1}.${subIdx + 1}`, isMain: false, mainStepNumber: mainIdx + 1,
+          hasSubSteps: false, isLastSub: subIdx === group.subSteps.length - 1,
+        });
       });
     });
     return entries;
   }, [stepGroups]);
 
-  const renderedStepCards = useMemo(() => flatStepEntries.map(({ step, label, isMain }, index) => {
+  const renderedStepCards = useMemo(() => flatStepEntries.map(({ step, label, isMain, hasSubSteps, isLastSub }, index) => {
     const embedUrl = step.videoUrl ? getVideoEmbedUrl(step.videoUrl) : null;
     const isDirectVideo = /\.(mp4|webm|ogg)(\?.*)?$/i.test(step.videoUrl ?? "");
     const galleryImageUrls = step.imageUrls.filter((url) => !step.contentHtml.includes(url));
@@ -389,7 +395,15 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
         id={`step-${index}`}
         data-step-index={index}
         sx={{
-          borderRadius: "8px", border: "none", backgroundColor: colors.cardBg, boxShadow: colors.cardShadow, overflow: "hidden",
+          // A main step with sub-steps loses its bottom rounding (the group
+          // continues below it); a sub-step is square all around unless it's
+          // the last one in its group, which gets bottom rounding to close
+          // the group off — this is true even when it's also the only
+          // sub-step, so a lone sub-step is square-top/rounded-bottom too.
+          borderRadius: isMain
+            ? (hasSubSteps ? "8px 8px 0 0" : "8px")
+            : (isLastSub ? "0 0 8px 8px" : "0"),
+          border: "none", backgroundColor: colors.cardBg, boxShadow: colors.cardShadow, overflow: "hidden",
           scrollMarginTop: { xs: 90, sm: 110, md: 120 },
           // A main step's own top margin separates it from the previous group;
           // a sub-step's is tiny so it reads as part of its main step's group
