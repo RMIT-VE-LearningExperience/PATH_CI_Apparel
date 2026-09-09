@@ -20,6 +20,8 @@ import {
 import {
   Add as AddIcon,
   ArrowBack as ArrowBackIcon,
+  ChevronLeft as ChevronLeftIcon,
+  ChevronRight as ChevronRightIcon,
   Home as HomeIcon,
   Image as ImageIcon,
   Info as InfoIcon,
@@ -296,7 +298,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
 
   const [selectionStack, setSelectionStack] = useState<NavEntry[]>([]);
   const [activeStepIndex, setActiveStepIndex] = useState(0);
-  const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
+  const [enlargedGallery, setEnlargedGallery] = useState<{ urls: string[]; index: number } | null>(null);
   const [imgZoom, setImgZoom] = useState(1);
   const [hideMenuEnabled, setHideMenuEnabled] = useState(false);
   const [isPreparingPrint, setIsPreparingPrint] = useState(false);
@@ -394,7 +396,6 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
           // instead of a separate floating card.
           mt: index === 0 ? 0 : isMain ? { xs: 3, sm: 4 } : 0.5,
           ...(isMain ? {} : {
-            borderLeft: `3px solid ${colors.lightBorder}`,
             boxShadow: "none",
           }),
           "@media print": { breakInside: "avoid", boxShadow: "none", border: `1px solid ${colors.lightBorder}` },
@@ -434,7 +435,11 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                 const target = e.target as HTMLElement;
                 if (target.tagName === "IMG") {
                   const src = (target as HTMLImageElement).src;
-                  if (src) { setEnlargedImage(src); setImgZoom(1); }
+                  if (!src) return;
+                  const siblingImgs = Array.from(e.currentTarget.querySelectorAll("img")).map((img) => img.src);
+                  const index = Math.max(0, siblingImgs.indexOf(src));
+                  setEnlargedGallery({ urls: siblingImgs, index });
+                  setImgZoom(1);
                 }
               }}
               sx={{
@@ -486,7 +491,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
               {galleryImageUrls.map((url, i) => (
                 <Box
                   key={url}
-                  onClick={() => { setEnlargedImage(url); setImgZoom(1); }}
+                  onClick={() => { setEnlargedGallery({ urls: galleryImageUrls, index: i }); setImgZoom(1); }}
                   sx={{
                     position: "relative", width: "100%", paddingBottom: "60%",
                     overflow: "hidden", borderRadius: 1, bgcolor: colors.lightBg,
@@ -788,6 +793,23 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
       window.removeEventListener("afterprint", handleAfterPrint);
     };
   }, []);
+
+  // ── Image lightbox keyboard navigation ──────────────────────────────────
+
+  useEffect(() => {
+    if (!enlargedGallery) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "ArrowLeft") {
+        setEnlargedGallery((g) => (g && g.index > 0 ? { ...g, index: g.index - 1 } : g));
+        setImgZoom(1);
+      } else if (e.key === "ArrowRight") {
+        setEnlargedGallery((g) => (g && g.index < g.urls.length - 1 ? { ...g, index: g.index + 1 } : g));
+        setImgZoom(1);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [enlargedGallery]);
 
   // ── Step scroll tracking ────────────────────────────────────────────────
   // "Most visible area" (by ratio or by absolute pixels) inherently favors
@@ -1317,16 +1339,40 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
 
         {/* Image zoom modal */}
         <Modal
-          open={!!enlargedImage}
-          onClose={() => { setEnlargedImage(null); setImgZoom(1); }}
+          open={!!enlargedGallery}
+          onClose={() => { setEnlargedGallery(null); setImgZoom(1); }}
           sx={{ display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "rgba(0,0,0,0.85)" }}
         >
-          <Box sx={{ outline: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+          <Box sx={{ outline: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 1, position: "relative" }}>
+            {enlargedGallery && enlargedGallery.urls.length > 1 && enlargedGallery.index > 0 && (
+              <IconButton
+                aria-label="Previous image"
+                onClick={() => { setEnlargedGallery((g) => (g ? { ...g, index: g.index - 1 } : g)); setImgZoom(1); }}
+                sx={{
+                  position: "absolute", left: { xs: -8, sm: -56 }, top: "50%", transform: "translateY(-50%)",
+                  color: "white", bgcolor: "rgba(0,0,0,0.5)", "&:hover": { bgcolor: "rgba(0,0,0,0.7)" },
+                }}
+              >
+                <ChevronLeftIcon />
+              </IconButton>
+            )}
+            {enlargedGallery && enlargedGallery.urls.length > 1 && enlargedGallery.index < enlargedGallery.urls.length - 1 && (
+              <IconButton
+                aria-label="Next image"
+                onClick={() => { setEnlargedGallery((g) => (g ? { ...g, index: g.index + 1 } : g)); setImgZoom(1); }}
+                sx={{
+                  position: "absolute", right: { xs: -8, sm: -56 }, top: "50%", transform: "translateY(-50%)",
+                  color: "white", bgcolor: "rgba(0,0,0,0.5)", "&:hover": { bgcolor: "rgba(0,0,0,0.7)" },
+                }}
+              >
+                <ChevronRightIcon />
+              </IconButton>
+            )}
             <Box sx={{ overflow: "auto", maxWidth: "90vw", maxHeight: "80vh", borderRadius: "8px", bgcolor: "#111", lineHeight: 0 }}>
-              {enlargedImage && (
+              {enlargedGallery && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={enlargedImage}
+                  src={enlargedGallery.urls[enlargedGallery.index]}
                   alt="Step image"
                   style={{ display: "block", width: `${imgZoom * 100}%`, height: "auto", cursor: imgZoom > 1 ? "zoom-out" : "zoom-in" }}
                   onClick={() => setImgZoom((z) => (z > 1 ? 1 : 1.5))}
@@ -1343,6 +1389,11 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
               <IconButton size="small" onClick={() => setImgZoom((z) => Math.min(1.5, z + 0.5))} disabled={imgZoom >= 1.5} sx={{ color: "white" }}>
                 <AddIcon fontSize="small" />
               </IconButton>
+              {enlargedGallery && enlargedGallery.urls.length > 1 && (
+                <Typography variant="caption" sx={{ color: "white", minWidth: 40, textAlign: "center", borderLeft: "1px solid rgba(255,255,255,0.3)", pl: 1, ml: 0.5 }}>
+                  {enlargedGallery.index + 1} / {enlargedGallery.urls.length}
+                </Typography>
+              )}
             </Stack>
           </Box>
         </Modal>
