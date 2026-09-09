@@ -60,6 +60,7 @@ import AddEditStepDialog from "./dialogs/AddEditStepDialog";
 import SearchLinkDialog from "./dialogs/SearchLinkDialog";
 import ConfirmDeleteDialog from "./dialogs/ConfirmDeleteDialog";
 import InfoDialog from "./dialogs/InfoDialog";
+import CannotConvertToSubStepDialog from "./dialogs/CannotConvertToSubStepDialog";
 import CopyLinkDialog from "./dialogs/CopyLinkDialog";
 import QRCodeDialog from "./dialogs/QRCodeDialog";
 import EmbedDialog from "./dialogs/EmbedDialog";
@@ -241,6 +242,7 @@ export default function AdminDashboard() {
   } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [infoOpen, setInfoOpen] = useState<{ item: Item | Step; isStep?: boolean } | null>(null);
+  const [blockedConversion, setBlockedConversion] = useState<{ stepTitle: string; subStepTitles: string[] } | null>(null);
   const [copyLinkTarget, setCopyLinkTarget] = useState<{ itemName: string; url: string } | null>(null);
   const [qrTarget, setQrTarget] = useState<{ itemName: string; url: string } | null>(null);
   const [embedTarget, setEmbedTarget] = useState<{ itemName: string; url: string } | null>(null);
@@ -610,6 +612,15 @@ export default function AdminDashboard() {
     if (!stepDialog) return;
     const { mode, parentItemId, step } = stepDialog;
     if (mode === "edit" && step) {
+      if (data.stepType === "sub") {
+        const ownSubSteps = (state?.steps[parentItemId] ?? []).filter(
+          (s) => s.stepType === "sub" && s.parentStepId === step.id,
+        );
+        if (ownSubSteps.length > 0) {
+          setBlockedConversion({ stepTitle: step.title, subStepTitles: ownSubSteps.map((s) => s.title) });
+          return;
+        }
+      }
       const ns = await dispatch("updateStep", {
         parentItemId, stepId: step.id, title: data.title,
         contentHtml: data.contentHtml, imageDataUrls: data.imageDataUrls, videoUrl: data.videoUrl,
@@ -1705,6 +1716,15 @@ export default function AdminDashboard() {
           lastModified={(infoOpen.item as Item | Step).lastModified}
           modifiedBy={(infoOpen.item as Item | Step).modifiedBy}
           createdAt={(infoOpen.item as Item | Step).createdAt}
+        />
+      )}
+
+      {blockedConversion && (
+        <CannotConvertToSubStepDialog
+          open
+          onClose={() => setBlockedConversion(null)}
+          stepTitle={blockedConversion.stepTitle}
+          subStepTitles={blockedConversion.subStepTitles}
         />
       )}
 

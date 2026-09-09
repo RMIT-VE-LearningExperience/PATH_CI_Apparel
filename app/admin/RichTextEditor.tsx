@@ -6,6 +6,7 @@ import {
   FormatItalic as FormatItalicIcon,
   FormatUnderlined as FormatUnderlinedIcon,
   List as ListIcon,
+  FormatListNumbered as FormatListNumberedIcon,
   Link as LinkIcon,
   LinkOff as LinkOffIcon,
 } from "@mui/icons-material";
@@ -50,6 +51,7 @@ export default function RichTextEditor({ label, value, onChange }: Props) {
           { icon: <FormatItalicIcon />, cmd: "italic", title: "Italic" },
           { icon: <FormatUnderlinedIcon />, cmd: "underline", title: "Underline" },
           { icon: <ListIcon />, cmd: "insertUnorderedList", title: "Bullets" },
+          { icon: <FormatListNumberedIcon />, cmd: "insertOrderedList", title: "Numbered list" },
         ].map(({ icon, cmd, title }) => (
           <IconButton
             key={cmd}
