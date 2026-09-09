@@ -302,7 +302,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
   const [isPreparingPrint, setIsPreparingPrint] = useState(false);
 
   const stepRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const stepRatiosRef = useRef(new Map<number, number>());
+  const stepVisibleHeightRef = useRef(new Map<number, number>());
   const lastTrackedStep = useRef(-1);
   const selectionStackRef = useRef<NavEntry[]>([]);
 
@@ -794,7 +794,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
 
   useEffect(() => {
     if (!atSteps || currentSteps.length === 0) return;
-    stepRatiosRef.current.clear();
+    stepVisibleHeightRef.current.clear();
     lastTrackedStep.current = -1;
 
     const observer = new IntersectionObserver(
@@ -802,19 +802,21 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
         entries.forEach((entry) => {
           const idx = Number(entry.target.getAttribute("data-step-index"));
           if (entry.isIntersecting) {
-            stepRatiosRef.current.set(idx, entry.intersectionRatio);
+            stepVisibleHeightRef.current.set(idx, entry.intersectionRect.height);
           } else {
-            stepRatiosRef.current.delete(idx);
+            stepVisibleHeightRef.current.delete(idx);
           }
         });
 
-        // Pick whichever step is most visible right now, not just the earliest
-        // one still partially on screen — a "lowest index wins" rule lags behind
-        // the real scroll position, especially for tall steps like Preparation.
+        // Pick whichever step occupies the most visible screen space right now
+        // (absolute pixels, not each card's own ratio) — a short, near-empty
+        // main-step header can hit a high *ratio* just by fitting entirely on
+        // screen, even while a much taller sub-step card below it is genuinely
+        // dominating the viewport. Comparing raw pixel height avoids that bias.
         let bestIdx = -1;
-        let bestRatio = 0;
-        stepRatiosRef.current.forEach((ratio, idx) => {
-          if (ratio > bestRatio) { bestRatio = ratio; bestIdx = idx; }
+        let bestHeight = 0;
+        stepVisibleHeightRef.current.forEach((height, idx) => {
+          if (height > bestHeight) { bestHeight = height; bestIdx = idx; }
         });
         if (bestIdx >= 0) setActiveStepIndex(bestIdx);
       },
