@@ -366,6 +366,14 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
 
   const [selectionStack, setSelectionStack] = useState<NavEntry[]>([]);
   const [activeStepIndex, setActiveStepIndex] = useState(0);
+  // Debounced copy of activeStepIndex for the screen-reader status region,
+  // so scroll jitter doesn't trigger a flood of announcements.
+  const [announcedStepIndex, setAnnouncedStepIndex] = useState(0);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setAnnouncedStepIndex(activeStepIndex), 800);
+    return () => clearTimeout(timer);
+  }, [activeStepIndex]);
   const [enlargedGallery, setEnlargedGallery] = useState<{ items: { url: string; alt: string }[]; index: number } | null>(null);
   const [imgZoom, setImgZoom] = useState(1);
   const [hideMenuEnabled, setHideMenuEnabled] = useState(false);
@@ -1470,6 +1478,12 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                 >
                   STEP {totalMainSteps === 0 ? 0 : (flatStepEntries[activeStepIndex]?.mainStepNumber ?? 1)} OF {totalMainSteps}
                 </Typography>
+                {/* Debounced screen-reader announcement of the visual counter above */}
+                <Box component="p" role="status" sx={srOnlySx}>
+                  {totalMainSteps > 0
+                    ? `Step ${flatStepEntries[announcedStepIndex]?.mainStepNumber ?? 1} of ${totalMainSteps}`
+                    : ""}
+                </Box>
                 <Tooltip title={isPreparingPrint ? "Preparing to print…" : "Print"} arrow placement="top">
                   <span style={{ position: "absolute", right: "5px", top: "50%", transform: "translateY(-50%)" }}>
                     <IconButton
