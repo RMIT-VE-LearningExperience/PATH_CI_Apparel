@@ -390,11 +390,14 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
         sx={{
           borderRadius: "8px", border: "none", backgroundColor: colors.cardBg, boxShadow: colors.cardShadow, overflow: "hidden",
           scrollMarginTop: { xs: 90, sm: 110, md: 120 },
+          // A main step's own top margin separates it from the previous group;
+          // a sub-step's is tiny so it reads as part of its main step's group
+          // instead of a separate floating card.
+          mt: index === 0 ? 0 : isMain ? { xs: 3, sm: 4 } : 0.5,
           ...(isMain ? {} : {
             ml: { xs: 2, sm: 5 },
             borderLeft: `3px solid ${colors.lightBorder}`,
             boxShadow: "none",
-            border: `1px solid ${colors.lightBorder}`,
           }),
           "@media print": { breakInside: "avoid", boxShadow: "none", border: `1px solid ${colors.lightBorder}` },
         }}
@@ -1278,7 +1281,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
               </Box>
             </Box>
 
-            <Stack data-print-content spacing={{ xs: 3, sm: 4 }} sx={{ pb: { xs: 6, sm: 8 } }}>
+            <Stack data-print-content sx={{ pb: { xs: 6, sm: 8 } }}>
               {renderedStepCards}
             </Stack>
           </Container>
