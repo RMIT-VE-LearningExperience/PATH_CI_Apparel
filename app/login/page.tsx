@@ -202,7 +202,7 @@ export default function LoginPage() {
         <Box sx={{ padding: 4 }}>
           {tab === 0 && (
             <Stack spacing={2}>
-              <Typography variant="h5" fontWeight={700} textAlign="center">
+              <Typography variant="h5" component="h1" fontWeight={700} textAlign="center">
                 Admin Login
               </Typography>
 
@@ -236,7 +236,7 @@ export default function LoginPage() {
 
           {tab === 1 && (
             <Stack spacing={2}>
-              <Typography variant="h5" fontWeight={700} textAlign="center">
+              <Typography variant="h5" component="h1" fontWeight={700} textAlign="center">
                 Request for Access
               </Typography>
 

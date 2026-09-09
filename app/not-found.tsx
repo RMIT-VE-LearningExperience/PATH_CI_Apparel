@@ -55,7 +55,7 @@ export default function NotFound() {
         Skip to content
       </Box>
       <Stack component="main" id="main-content" tabIndex={-1} spacing={3} alignItems="center" sx={{ textAlign: "center", px: 3, outline: "none" }}>
-        <Typography variant="h4" fontWeight={700} sx={{ color: "#45443F" }}>
+        <Typography variant="h4" component="h1" fontWeight={700} sx={{ color: "#45443F" }}>
           Page not found
         </Typography>
         <Typography variant="body1" sx={{ color: "#62615C" }}>

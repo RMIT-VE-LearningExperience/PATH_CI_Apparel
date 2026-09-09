@@ -276,6 +276,7 @@ function ItemCard({
           <Stack spacing={1.5}>
             <Typography
               variant="h6"
+              component="h2"
               sx={{ fontSize: { xs: "1rem", sm: "1.1rem" }, fontWeight: 600, color: colors.text, lineHeight: 1.4 }}
             >
               {item.name}
@@ -302,6 +303,7 @@ function ItemCard({
           <Stack direction="row" spacing={1} alignItems="flex-start">
             <Typography
               variant="h6"
+              component="h2"
               sx={{ fontSize: { xs: "1rem", sm: "1.1rem" }, fontWeight: 600, color: colors.text, flex: 1, lineHeight: 1.4 }}
             >
               {item.name}
@@ -1156,7 +1158,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
           alignItems="center"
           sx={{ ...mainFocusSx, textAlign: "center", px: 3 }}
         >
-          <Typography variant="h4" fontWeight={700} color={colors.text}>Item not found</Typography>
+          <Typography variant="h4" component="h1" fontWeight={700} color={colors.text}>Item not found</Typography>
           <Typography variant="body1" color={colors.lightText}>
             This link is no longer available or has been removed.
           </Typography>
@@ -1294,7 +1296,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                 <ArrowBackIcon />
               </NavIconButton>
               <Stack spacing={0.25} sx={{ flex: 1, textAlign: "center" }}>
-                <Typography variant="body2" sx={{ fontSize: { xs: "0.85rem", sm: "0.95rem" }, fontWeight: 500, color: colors.lightText }}>
+                <Typography variant="body2" component="h1" sx={{ fontSize: { xs: "0.85rem", sm: "0.95rem" }, fontWeight: 500, color: colors.lightText, m: 0 }}>
                   {level1Item?.name ?? ""}
                 </Typography>
                 {level2Item && (
@@ -1375,7 +1377,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                   <ArrowBackIcon />
                 </NavIconButton>
                 <Stack spacing={0.25} sx={{ flex: 1, textAlign: "center" }}>
-                  <Typography variant="body2" sx={{ fontSize: { xs: "0.85rem", sm: "0.95rem" }, fontWeight: 500, color: colors.lightText }}>
+                  <Typography variant="body2" component="h1" sx={{ fontSize: { xs: "0.85rem", sm: "0.95rem" }, fontWeight: 500, color: colors.lightText, m: 0 }}>
                     {level1Item?.name ?? ""}
                   </Typography>
                   {level2Item && (
@@ -1442,7 +1444,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
               }}
             >
               <Typography
-                variant="h2"
+                variant="h1"
                 sx={{ fontSize: { xs: "1.75rem", sm: "2.25rem", md: "2.5rem" }, fontWeight: 800, letterSpacing: "-0.02em", color: colors.text, mb: 1 }}
               >
                 {lastItem?.name ?? ""}
