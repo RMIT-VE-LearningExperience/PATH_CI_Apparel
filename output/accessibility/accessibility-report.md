@@ -175,3 +175,40 @@ Fix: expose the current step via a visually-hidden `role="status"`/`aria-live="p
 - The rendered heading outline has one `h1` per view and no skipped levels.
 - The document title reflects the current view.
 - Direct instructional video cannot be published without required captions and equivalent alternatives.
+
+---
+
+## Phase 4 re-audit — 9 September 2026 (public/front-end routes only)
+
+Re-ran the same method (Lighthouse + Playwright DOM inspection) against the same four routes, on `Staging-Apparel` after the main/sub-step feature, the image-gallery pivot, all three products' content migrations, and this session's layout work landed. Admin routes (A1, A2) were not re-tested — still no admin credentials available in this environment; treat those two findings as unverified-but-presumed-unchanged. `npm run lint` still clean.
+
+### Automated results — before / after
+
+| View | Baseline score | Re-audit score | Change |
+|---|---:|---:|---|
+| Homepage | 98 | 98 | No change (heading-order still failing) |
+| Complete step guide (Tote Bag) | 95 | **91** | **Worse** — new `frame-title` failure (see A12) |
+| Login | 100 | 100 | No change |
+| Not found | 100 | 100 | No change |
+
+Raw reports: `lighthouse-*-reaudit.json` beside this file.
+
+### Per-finding status
+
+| Finding | Status | Notes |
+|---|---|---|
+| A1 — Admin keyboard operability | Not re-tested | No admin credentials in this environment |
+| A2 — Admin icon control names | Not re-tested | No admin credentials in this environment |
+| A3 — Video captions | **Open, now unconditional** | No `<track>` exists anywhere in `app/`, unchanged. Was flagged "conditional" because the originally-audited guide had no direct video in view; that's no longer true — real instructional videos are now a core, deliberately-organized part of every product's guide (Tote Bag, Sewing Kit, Japanese Apron all use the dedicated `videoUrl` field extensively). This finding should be treated as a live gap, not a hypothetical one. |
+| A4 — No `<main>` landmark or skip link | **Unchanged** | Still zero `<main>`/`role="main"` elements and no skip link on any of the 5 routes checked. Still the single highest-leverage fix available. |
+| A5 — Heading hierarchy / no page `h1` | **Partially improved** | The step guide's `h2`/`h3` structure is now genuine and structural (main step → `h2`, sub-step → `h3`, from the real component, not incidentally-pasted content headings as at baseline) — a side effect of the Day 5 main/sub-step work. The core issue remains open: no page ever has a true `h1`; on the step guide, the product title ("Tote Bag") and every main step title both render at `h2`, so the outline still doesn't distinguish "page title" from "section heading." Homepage, item list, login, and not-found are all unchanged from baseline. |
+| A6 — Image viewer not a named dialog | **Unchanged, with one improvement** | Still `role="presentation"`, no `aria-modal`, hardcoded `alt="Step image"`, and the pre-existing zoom in/out buttons still have no `aria-label`. The new prev/next gallery-navigation buttons added this session (`aria-label="Previous image"`/`"Next image"`) *are* correctly labelled — worth keeping as the pattern to follow when this finding is eventually fixed properly. |
+| A7 — Unlabeled Back/Home nav buttons | **Unchanged** | Confirmed still exactly 2 unlabeled buttons on the step guide via Playwright; same `NavIconButton` component, same fix as before. |
+| A8 — Login tabs not connected | **Unchanged** | Tabs still have no `id`/`aria-controls`, no `role="tabpanel"` in the DOM. |
+| A9 — Document title never changes | **Unchanged** | Checked all 5 routes again; `document.title` is still the static `"PATH CI Apparel"` everywhere. |
+| A10 — Step progress visual-only | **Unchanged** | A `[role=status]` element was briefly observed during the initial Playwright pass — investigated directly and confirmed it's a transient MUI `CircularProgress` loading spinner (which carries a default ARIA role), not a step-progress live region. Re-checked after full load: no live region present. This finding stands exactly as at baseline. |
+| **A12 — New, Low: Step-video iframes have no accessible title** | **New finding** | WCAG 2.4.1 Bypass Blocks / 4.1.2 Name, Role, Value. The iframe rendered for a step's own dedicated `videoUrl` field (`app/components/PublicApp.tsx`, the `embedUrl` block) has no `title` attribute — confirmed via Playwright: all 7 video iframes on the Tote Bag guide have `hasAttribute('title') === false`. This is a pre-existing gap in that rendering code, not something introduced this session, but it's now far more exposed: the Day 6–9 work deliberately reorganized many videos that used to sit as raw, Canvas-authored `<iframe title="...">` tags embedded in `contentHtml` (which *do* retain a title) into this dedicated field specifically because that's the correct data model — an accessibility regression as an unintended side effect of a genuine data-quality fix. This is the direct cause of the step guide's Lighthouse score dropping from 95 to 91. **Fix**: give the `embedUrl` iframe a `title` derived from the step's own title (e.g. `` `Video for step: ${step.title}` ``) — a small, contained fix. |
+
+### What this means going forward
+
+Nothing regressed from the *intended* Steps-layout work — A5's improvement is real, and the new A12 finding is a small, easy fix in one render block, not a sign the broader effort caused harm. But this confirms none of the larger baseline findings (A4 main landmark, A6 dialog semantics, A7 nav labels, A8 tab semantics, A9 titles, A10 live region) got fixed as side effects, and the video-caption finding (A3) is now clearly live rather than hypothetical. These are still open and would need their own scoped pass.
