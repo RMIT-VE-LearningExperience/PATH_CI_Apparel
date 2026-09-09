@@ -54,6 +54,70 @@ const colors = {
   stepNumberBg: "#e61e2a",
 };
 
+// Visually hides content while keeping it in the accessibility tree.
+const srOnlySx = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: "hidden",
+  clip: "rect(0, 0, 0, 0)",
+  whiteSpace: "nowrap",
+  border: 0,
+} as const;
+
+// Applied to the <main> landmark, which is given programmatic focus after
+// every in-app navigation (see the focus/title-management effect below) —
+// including navigations triggered by a plain mouse click. :focus-visible
+// (not :focus) is what keeps the ring hidden for that mouse-click case: the
+// browser's own heuristic tracks whether the last input was pointer or
+// keyboard and only matches :focus-visible for the latter, so a keyboard
+// activation (Tab, then Enter/Space) shows the ring and a mouse click doesn't.
+const mainFocusSx = {
+  outline: "none",
+  "&:focus-visible": {
+    outline: `3px solid ${colors.primary}`,
+    outlineOffset: "-2px",
+  },
+} as const;
+
+// ── Skip link ─────────────────────────────────────────────────────────
+// Hidden until focused, so keyboard users can jump straight past the
+// preview banner / top nav to the main content of the current view.
+
+function SkipLink() {
+  return (
+    <Box
+      component="a"
+      href="#main-content"
+      sx={{
+        ...srOnlySx,
+        "&:focus": {
+          position: "fixed",
+          top: 8,
+          left: 8,
+          width: "auto",
+          height: "auto",
+          margin: 0,
+          padding: "8px 16px",
+          overflow: "visible",
+          clip: "auto",
+          whiteSpace: "normal",
+          zIndex: 2000,
+          bgcolor: colors.darkBg,
+          color: "#fff",
+          borderRadius: 1,
+          fontWeight: 700,
+          textDecoration: "none",
+        },
+      }}
+    >
+      Skip to content
+    </Box>
+  );
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────
 
 function getVideoEmbedUrl(url: string): string | null {
@@ -306,6 +370,8 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
   const stepRefs = useRef<(HTMLDivElement | null)[]>([]);
   const lastTrackedStep = useRef(-1);
   const selectionStackRef = useRef<NavEntry[]>([]);
+  const mainRef = useRef<HTMLDivElement>(null);
+  const isFirstRenderRef = useRef(true);
 
   // ── Derived ─────────────────────────────────────────────────────────
 
@@ -325,6 +391,16 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
 
   const isLastSelectionLevel = !atSteps && currentLevel !== undefined &&
     activeLevels.indexOf(currentLevel) === activeLevels.length - 1;
+
+  // Name of whatever the user is currently looking at, for the document title.
+  const currentPageName = useMemo((): string => {
+    if (!state) return "";
+    if (selectionStack.length === 0) return state.homepageTitle || activeLevels[0]?.name || "Guide";
+    const parentItem = parentEntry
+      ? (state.items[parentLevel?.id ?? ""] ?? []).find((i) => i.id === parentEntry.itemId)
+      : undefined;
+    return parentItem?.name ?? currentLevel?.sectionTitle ?? "";
+  }, [state, selectionStack, activeLevels, parentEntry, parentLevel, currentLevel]);
 
   const visibleItems = useMemo((): Item[] => {
     if (!state || !currentLevel) return [];
@@ -712,6 +788,54 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
     selectionStackRef.current = selectionStack;
   }, [selectionStack]);
 
+  // ── Focus + title management for SPA-style navigation ──────────────────
+  // This is a single-page app underneath one route, so the browser's own
+  // page-load title/focus behavior only ever fires once, for the very first
+  // route. Screen reader users get no signal anything changed unless we
+  // update the title and move focus ourselves on every subsequent in-app
+  // navigation.
+  //
+  // Title and focus are two separate effects with different triggers on
+  // purpose: title should reflect `currentPageName` whenever it settles,
+  // including once the initial data fetch resolves for the homepage itself
+  // (where `selectionStack` never changes at all, since it starts and stays
+  // `[]`) — keying this on `selectionStack` alone would leave the homepage
+  // stuck on the static default title forever.
+  //
+  // Focus-moving is keyed on `selectionStack`, but guarded on `loading`
+  // rather than a plain "skip the first trigger" flag: for a direct deep
+  // link (e.g. a shared URL straight to a product's guide), the initial
+  // slug resolution still lands on this same effect once `selectionStack`
+  // settles to its resolved value — a *single* extra state change beyond
+  // the mount-time `[]`, so a naive "skip only the very first invocation"
+  // guard treats that settle as the real navigation and steals focus right
+  // after the page loads. `loading` flips from true to false exactly once,
+  // covering however many renders the initial resolution takes, so it's
+  // the reliable boundary between "still settling from page load" and "a
+  // genuine subsequent in-app navigation".
+
+  useEffect(() => {
+    if (!currentPageName) return;
+    document.title = currentPageName;
+  }, [currentPageName]);
+
+  useEffect(() => {
+    if (loading) return;
+    if (isFirstRenderRef.current) {
+      isFirstRenderRef.current = false;
+      return;
+    }
+    mainRef.current?.focus();
+  }, [selectionStack, loading]);
+
+  // The catch-all route renders this view for unknown slugs, so it is the
+  // app's real 404 page and needs its own title.
+  useEffect(() => {
+    if (notFound) {
+      document.title = "Item not found · PATH CI Apparel";
+    }
+  }, [notFound]);
+
   // ── Popstate — browser back/forward ──────────────────────────────────
 
   useEffect(() => {
@@ -1021,7 +1145,16 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
   if (notFound) {
     return (
       <Box sx={{ minHeight: "100vh", bgcolor: colors.lightBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <Stack spacing={3} alignItems="center" sx={{ textAlign: "center", px: 3 }}>
+        <SkipLink />
+        <Stack
+          component="main"
+          id="main-content"
+          ref={mainRef}
+          tabIndex={-1}
+          spacing={3}
+          alignItems="center"
+          sx={{ ...mainFocusSx, textAlign: "center", px: 3 }}
+        >
           <Typography variant="h4" fontWeight={700} color={colors.text}>Item not found</Typography>
           <Typography variant="body1" color={colors.lightText}>
             This link is no longer available or has been removed.
@@ -1075,8 +1208,9 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
           flexDirection: "column",
         }}
       >
+        <SkipLink />
         {previewBanner}
-        <Container maxWidth="md">
+        <Container maxWidth="md" component="main" id="main-content" ref={mainRef} tabIndex={-1} sx={mainFocusSx}>
           <Stack spacing={2} sx={{ mb: { xs: 5, sm: 6, md: 8 }, textAlign: "center" }}>
             <Typography
               variant="h1"
@@ -1150,8 +1284,9 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
           pb: 0,
         }}
       >
+        <SkipLink />
         {previewBanner}
-        <Container maxWidth="md">
+        <Container maxWidth="md" component="main" id="main-content" ref={mainRef} tabIndex={-1} sx={mainFocusSx}>
           {!hideMenuEnabled && (
             <Stack direction="row" spacing={1.5} sx={{ mb: { xs: 4, sm: 5 }, alignItems: "center" }}>
               <NavIconButton onClick={() => handleBack(selectionStack.length - 1)}>
@@ -1230,8 +1365,9 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
     if (currentSteps.length === 0) {
       return (
         <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column", bgcolor: colors.lightBg, py: { xs: 4, sm: 5, md: 7 }, pt: previewPt }}>
+          <SkipLink />
           {previewBanner}
-          <Container maxWidth="md">
+          <Container maxWidth="md" component="main" id="main-content" ref={mainRef} tabIndex={-1} sx={mainFocusSx}>
             {!hideMenuEnabled && (
               <Stack direction="row" spacing={1.5} sx={{ mb: { xs: 4, sm: 5 }, alignItems: "center" }}>
                 <NavIconButton onClick={() => handleBack(selectionStack.length - 1)}>
@@ -1265,11 +1401,12 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
 
     return (
       <Box sx={{ minHeight: "100vh", bgcolor: colors.lightBg }}>
+        <SkipLink />
         <Box sx={{ "@media print": { display: "none" } }}>{previewBanner}</Box>
         <Box sx={{ height: 3, bgcolor: colors.primary, mt: isPreviewMode ? "36px" : 0, "@media print": { display: "none" } }} />
 
         <Box sx={{ py: { xs: 4, sm: 5, md: 7 } }}>
-          <Container maxWidth="md">
+          <Container maxWidth="md" component="main" id="main-content" ref={mainRef} tabIndex={-1} sx={mainFocusSx}>
             {!hideMenuEnabled && (
               <Stack direction="row" spacing={1.5} sx={{ mb: { xs: 4, sm: 5 }, alignItems: "center", "@media print": { display: "none" } }}>
                 <NavIconButton onClick={() => handleBack(selectionStack.length - 1)}>

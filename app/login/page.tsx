@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { trackEvent } from "../components/GoogleAnalytics";
 import { signInWithCustomToken } from "firebase/auth";
 import {
@@ -17,6 +17,10 @@ import {
 import { initializeFirebaseClient } from "../../lib/firebase-client";
 
 export default function LoginPage() {
+  useEffect(() => {
+    document.title = "Admin login · PATH CI Apparel";
+  }, []);
+
   const [tab, setTab] = useState(0);
 
   // Login state
@@ -123,14 +127,53 @@ export default function LoginPage() {
 
   return (
     <Box
+      component="main"
+      id="main-content"
+      tabIndex={-1}
       sx={{
         minHeight: "100vh",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         backgroundColor: "#f2f2f2",
+        outline: "none",
       }}
     >
+      <Box
+        component="a"
+        href="#main-content"
+        sx={{
+          position: "absolute",
+          width: 1,
+          height: 1,
+          padding: 0,
+          margin: -1,
+          overflow: "hidden",
+          clip: "rect(0, 0, 0, 0)",
+          whiteSpace: "nowrap",
+          border: 0,
+          "&:focus": {
+            position: "fixed",
+            top: 8,
+            left: 8,
+            width: "auto",
+            height: "auto",
+            margin: 0,
+            padding: "8px 16px",
+            overflow: "visible",
+            clip: "auto",
+            whiteSpace: "normal",
+            zIndex: 2000,
+            bgcolor: "#45443F",
+            color: "#fff",
+            borderRadius: 1,
+            fontWeight: 700,
+            textDecoration: "none",
+          },
+        }}
+      >
+        Skip to content
+      </Box>
       <Box
         sx={{
           width: "100%",
