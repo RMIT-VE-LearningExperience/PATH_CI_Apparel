@@ -4,7 +4,7 @@ export const DIALOG_PAPER_SX = {
 } as const;
 
 export const DIALOG_TITLE_SX = {
-  bgcolor: "#FDF9F1",
+  bgcolor: "#f2f2f2",
   borderBottom: "2px solid #E5E1D7",
   fontWeight: 700,
   color: "#000054",
@@ -14,7 +14,7 @@ export const DIALOG_TITLE_SX = {
 
 export const DIALOG_ACTIONS_SX = {
   borderTop: "1px solid #E5E1D7",
-  bgcolor: "#FDF9F1",
+  bgcolor: "#f2f2f2",
   pt: 2,
   pb: 2,
   px: 3,

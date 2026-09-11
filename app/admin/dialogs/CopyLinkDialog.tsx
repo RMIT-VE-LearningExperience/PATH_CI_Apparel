@@ -48,7 +48,7 @@ export default function CopyLinkDialog({ open, onClose, url, itemName }: Props) 
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth PaperProps={{ sx: DIALOG_PAPER_SX }}>
-      <DialogTitle sx={{ bgcolor: "#FDF9F1", borderBottom: "2px solid #E5E1D7", py: 2.5 }}>
+      <DialogTitle sx={{ bgcolor: "#f2f2f2", borderBottom: "2px solid #E5E1D7", py: 2.5 }}>
         <Typography variant="h6" sx={{ fontWeight: 700, color: "#000054", fontSize: "1.1rem" }}>
           Copy Link
         </Typography>

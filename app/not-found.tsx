@@ -73,7 +73,7 @@ export default function NotFound() {
             borderRadius: 2,
             px: 3,
             py: 1,
-            "&:hover": { bgcolor: "#45443F" },
+            "&:hover": { bgcolor: "#00003f" },
           }}
         >
           Back to Homepage

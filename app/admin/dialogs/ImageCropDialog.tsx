@@ -180,7 +180,7 @@ export default function ImageCropDialog({ open, onClose, imageDataUrl, originalD
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  bgcolor: "#FDF9F1",
+                  bgcolor: "#f2f2f2",
                   userSelect: "none",
                   cursor: isDragging ? "grabbing" : "default",
                 }}
@@ -231,7 +231,7 @@ export default function ImageCropDialog({ open, onClose, imageDataUrl, originalD
             Drag the crop box to reposition it. Drag the bottom-right handle to resize freely.
           </Typography>
         </DialogContent>
-        <DialogActions sx={{ borderTop: "1px solid #E5E1D7", pt: 2, pb: 2, px: 3, bgcolor: "#FDF9F1", justifyContent: "space-between" }}>
+        <DialogActions sx={{ borderTop: "1px solid #E5E1D7", pt: 2, pb: 2, px: 3, bgcolor: "#f2f2f2", justifyContent: "space-between" }}>
           <Tooltip title="Reset to original">
             <IconButton onClick={handleReset} sx={{ color: "#000054" }}>
               <RefreshIcon />

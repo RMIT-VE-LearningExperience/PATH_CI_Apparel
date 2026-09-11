@@ -44,6 +44,7 @@ const PROGRESS_KEY = "path_guide_progress_v1";
 
 const colors = {
   primary: "#000054",
+  primaryHover: "#00003f",
   darkBg: "#45443F",
   lightBg: "#f2f2f2",
   lightBorder: "#E5E1D7",
@@ -1188,7 +1189,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
               bgcolor: colors.primary, color: "#fff", fontWeight: 700,
               textTransform: "none", borderRadius: 2, px: 3, py: 1,
               border: "none", cursor: "pointer", fontSize: "1rem",
-              "&:hover": { bgcolor: colors.darkBg },
+              "&:hover": { bgcolor: colors.primaryHover },
             }}
           >
             Back to Homepage
@@ -1614,7 +1615,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                   bgcolor: atFirstStep ? colors.lightBorder : colors.primary,
                   color: atFirstStep ? colors.lightText : "#ffffff",
                   pointerEvents: atFirstStep ? "none" : "auto",
-                  "&:hover": { bgcolor: atFirstStep ? colors.lightBorder : colors.darkBg },
+                  "&:hover": { bgcolor: atFirstStep ? colors.lightBorder : colors.primaryHover },
                   boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
                 }}
               >
@@ -1630,7 +1631,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                   bgcolor: atLastStep ? colors.lightBorder : colors.primary,
                   color: atLastStep ? colors.lightText : "#ffffff",
                   pointerEvents: atLastStep ? "none" : "auto",
-                  "&:hover": { bgcolor: atLastStep ? colors.lightBorder : colors.darkBg },
+                  "&:hover": { bgcolor: atLastStep ? colors.lightBorder : colors.primaryHover },
                   boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
                 }}
               >

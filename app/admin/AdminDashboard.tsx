@@ -858,10 +858,10 @@ export default function AdminDashboard() {
                 onChange={() => void handlePublishToggle(item, levelId)}
                 size="small"
                 sx={{
-                  "& .MuiSwitch-switchBase.Mui-checked": { color: "#135b22" },
-                  "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { bgcolor: "#b8b8d1" },
-                  "& .MuiSwitch-switchBase": { color: "#C4321A" },
-                  "& .MuiSwitch-track": { bgcolor: "#efc9c2" },
+                  "& .MuiSwitch-switchBase.Mui-checked": { color: "#1A7A2E" },
+                  "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { bgcolor: "rgba(26,122,46,0.35)" },
+                  "& .MuiSwitch-switchBase": { color: "#f59e0b" },
+                  "& .MuiSwitch-track": { bgcolor: "rgba(245,158,11,0.35)" },
                 }}
               />
             </Tooltip>
@@ -885,7 +885,7 @@ export default function AdminDashboard() {
       <TableContainer component={Paper} elevation={2} sx={{ borderRadius: 1, overflow: "hidden", mb: 3 }}>
         <Table>
           <TableHead>
-            <TableRow sx={{ bgcolor: "#FDF9F1", borderBottom: "2px solid #E5E1D7" }}>
+            <TableRow sx={{ bgcolor: "#f2f2f2", borderBottom: "2px solid #E5E1D7" }}>
               <TableCell
                 sx={{ fontWeight: 700, cursor: "pointer", userSelect: "none", color: "#45443F", fontSize: "0.95rem", padding: "16px" }}
                 onClick={() => handleSortClick("name")}
@@ -1358,7 +1358,7 @@ export default function AdminDashboard() {
           <TableContainer component={Paper} elevation={2} sx={{ borderRadius: 1, overflow: "hidden" }}>
             <Table size="small">
               <TableHead>
-                <TableRow sx={{ bgcolor: "#FDF9F1", borderBottom: "2px solid #E5E1D7" }}>
+                <TableRow sx={{ bgcolor: "#f2f2f2", borderBottom: "2px solid #E5E1D7" }}>
                   <TableCell sx={{ fontWeight: 700, color: "#45443F", fontSize: "0.9rem", py: 1.5, px: 2 }}>Name</TableCell>
                   <TableCell sx={{ fontWeight: 700, color: "#45443F", fontSize: "0.9rem", py: 1.5, px: 2 }}>Type</TableCell>
                   <TableCell sx={{ fontWeight: 700, color: "#45443F", fontSize: "0.9rem", py: 1.5, px: 2 }}>Location</TableCell>
@@ -1583,7 +1583,7 @@ export default function AdminDashboard() {
 
       <Box
         component="main"
-        sx={{ flex: 1, p: 3, bgcolor: "#FDF9F1", minHeight: "100vh", overflowY: "auto", position: "relative" }}
+        sx={{ flex: 1, p: 3, bgcolor: "#f2f2f2", minHeight: "100vh", overflowY: "auto", position: "relative" }}
       >
         {/* Loading overlay */}
         {actionLoading && (
@@ -1627,12 +1627,12 @@ export default function AdminDashboard() {
           </Breadcrumbs>
           <Stack direction="row" spacing={0.5} alignItems="center">
             <Tooltip title="Statistics">
-              <IconButton onClick={() => setStatsOpen(true)} size="small" sx={{ color: "#666", "&:hover": { color: "#333" } }}>
+              <IconButton onClick={() => setStatsOpen(true)} size="small" sx={{ color: "#62615C", "&:hover": { color: "#45443F" } }}>
                 <EqualizerIcon fontSize="small" />
               </IconButton>
             </Tooltip>
             <Tooltip title="Sign Out">
-              <IconButton onClick={() => void signOut()} size="small" sx={{ color: "#666", "&:hover": { color: "#333" } }}>
+              <IconButton onClick={() => void signOut()} size="small" sx={{ color: "#62615C", "&:hover": { color: "#45443F" } }}>
                 <LogoutIcon fontSize="small" />
               </IconButton>
             </Tooltip>
